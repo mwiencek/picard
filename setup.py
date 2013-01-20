@@ -4,10 +4,10 @@
 import glob, re
 import os
 import sys
+import sipdistutils
 from StringIO import StringIO
 from ConfigParser import RawConfigParser
 from picard import __version__
-
 from picard.const import UI_LANGUAGES
 
 
@@ -30,7 +30,7 @@ try:
           'iconfile'       : 'picard.icns',
           'frameworks'     : ['libiconv.2.dylib', 'libdiscid.0.dylib'],
           'resources'      : ['locale'],
-          'includes'       : ['json', 'sip', 'PyQt4', 'picard.util.astrcmp'],
+          'includes'       : ['json', 'sip', 'PyQt4', 'picard.util.astrcmp', 'picard.ui.treemodel'],
           'excludes'       : ['pydoc', 'PyQt4.QtDeclarative', 'PyQt4.QtDesigner', 'PyQt4.QtHelp', 'PyQt4.QtMultimedia',
                               'PyQt4.QtOpenGL', 'PyQt4.QtScript', 'PyQt4.QtScriptTools', 'PyQt4.QtSql', 'PyQt4.QtSvg',
                               'PyQt4.QtTest', 'PyQt4.QtWebKit', 'PyQt4.QtXmlPatterns', 'PyQt4.phonon'],
@@ -60,9 +60,21 @@ from distutils.dep_util import newer
 from distutils.dist import Distribution
 
 
-
 ext_modules = [
     Extension('picard.util.astrcmp', sources=['picard/util/astrcmp.c']),
+    Extension(
+        "picard.ui.treemodel",
+        sources=[
+            "picard/ui/treemodel.sip",
+            "picard/ui/treemodel.cpp"
+        ],
+        include_dirs=[
+            "/Library/Frameworks/QtCore.framework/Versions/4/Headers",
+            "/usr/include/QtCore",
+            "picard/ui"
+        ],
+        extra_link_args=["-framework QtCore"]
+    )
 ]
 
 
@@ -278,6 +290,33 @@ class picard_build_ui(Command):
             os.system("pyrcc4 %s -o %s" % (qrcfile, pyfile))
 
 
+class picard_build_ext(sipdistutils.build_ext):
+
+    qtcore_includes = [
+        "-I/Library/Frameworks/QtCore.framework/Versions/4/Headers",
+        "-I/usr/include/QtCore"
+    ]
+
+    def initialize_options(self):
+        sipdistutils.build_ext.initialize_options(self)
+
+        from PyQt4 import pyqtconfig
+        config = pyqtconfig.Configuration()
+
+        self.sip_opts = " ".join([
+                config.pyqt_sip_flags, "-I" + config.pyqt_sip_dir,
+            ] + self.qtcore_includes)
+
+    def build_extension(self, ext):
+        if ext.name == "picard.ui.treemodel":
+            self.spawn(["mkdir", "-p", self.build_temp])
+            moc_source = os.path.join(self.build_temp, "moc_treemodel.cpp")
+            self.spawn(["moc"] + self.qtcore_includes + ["picard/ui/treemodel.h", "-o", moc_source])
+            ext.sources.append(moc_source)
+
+        sipdistutils.build_ext.build_extension(self, ext)
+
+
 class picard_clean_ui(Command):
     description = "clean up compiled Qt UI files and resources"
     user_options = []
@@ -306,15 +345,6 @@ class picard_clean_ui(Command):
             log.warn("'%s' does not exist -- can't clean it", pyfile)
 
 
-def cflags_to_include_dirs(cflags):
-    cflags = cflags.split()
-    include_dirs = []
-    for cflag in cflags:
-        if cflag.startswith('-I'):
-            include_dirs.append(cflag[2:])
-    return include_dirs
-
-
 args2 = {
     'name': 'picard',
     'version': __version__,
@@ -333,6 +363,7 @@ args2 = {
         'build': picard_build,
         'build_locales': picard_build_locales,
         'build_ui': picard_build_ui,
+        'build_ext': picard_build_ext,
         'clean_ui': picard_clean_ui,
         'install': picard_install,
         'install_locales': picard_install_locales,
