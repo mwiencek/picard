@@ -22,11 +22,12 @@
 %Import QtCore/QtCoremod.sip
 
 %ModuleCode
-TreeItem *pyobject_to_treeitem(PyObject *obj, int *err) {
+TreeItem *pyobject_to_treeitem(PyObject *obj, int *err, int ref) {
+    if (ref > 0) Py_INCREF(obj); else if (ref < 0) Py_DECREF(obj);
     return (TreeItem *)sipConvertToType(obj, sipType_TreeItem, NULL, NULL, NULL, err);
 }
 
-QList<TreeItem *> *pylist_to_qlist(PyObject *list, int *err) {
+QList<TreeItem *> *pylist_to_qlist(PyObject *list, int *err, int ref) {
     Py_ssize_t count;
 
     if (!PyList_Check(list) || (count = PyList_GET_SIZE(list)) == 0)
@@ -37,7 +38,7 @@ QList<TreeItem *> *pylist_to_qlist(PyObject *list, int *err) {
 
     for (int i = 0; i < count; i++) {
         obj = PyList_GET_ITEM(list, i);
-        items->append(pyobject_to_treeitem(obj, err));
+        items->append(pyobject_to_treeitem(obj, err, ref));
     };
 
     return items;
@@ -47,8 +48,8 @@ QList<TreeItem *> *pylist_to_qlist(PyObject *list, int *err) {
 %ModuleHeaderCode
 #include "treemodel.h"
 
-TreeItem *pyobject_to_treeitem(PyObject *obj, int *err);
-QList<TreeItem *> *pylist_to_qlist(PyObject *list, int *err);
+TreeItem *pyobject_to_treeitem(PyObject *obj, int *err, int ref);
+QList<TreeItem *> *pylist_to_qlist(PyObject *list, int *err, int ref);
 %End
 
 class TreeItem
@@ -64,7 +65,7 @@ class TreeItem
 
         void appendChild(SIP_PYOBJECT item);
         %MethodCode
-            TreeItem *a0_item = pyobject_to_treeitem(a0, &sipIsErr);
+            TreeItem *a0_item = pyobject_to_treeitem(a0, &sipIsErr, 1);
 
             if (!sipIsErr)
                 sipCpp->appendChild(a0_item);
@@ -72,7 +73,7 @@ class TreeItem
 
         void appendChildren(SIP_PYLIST items);
         %MethodCode
-            QList<TreeItem *> *a0_items = pylist_to_qlist(a0, &sipIsErr);
+            QList<TreeItem *> *a0_items = pylist_to_qlist(a0, &sipIsErr, 1);
 
             if (!sipIsErr)
                 sipCpp->appendChildren(a0_items);
@@ -82,7 +83,7 @@ class TreeItem
 
         void removeChild(SIP_PYOBJECT item);
         %MethodCode
-            TreeItem *a0_item = pyobject_to_treeitem(a0, &sipIsErr);
+            TreeItem *a0_item = pyobject_to_treeitem(a0, &sipIsErr, -1);
 
             if (!sipIsErr)
                 sipCpp->removeChild(a0_item);
@@ -90,7 +91,7 @@ class TreeItem
 
         void replaceChildren(SIP_PYLIST newChildren);
         %MethodCode
-            QList<TreeItem *> *a0_items = pylist_to_qlist(a0, &sipIsErr);
+            QList<TreeItem *> *a0_items = pylist_to_qlist(a0, &sipIsErr, 1);
 
             if (!sipIsErr)
                 sipCpp->replaceChildren(a0_items);
@@ -136,10 +137,10 @@ class TreeModel : public QAbstractItemModel
 
         void appendItems(SIP_PYLIST items, SIP_PYOBJECT parent);
         %MethodCode
-            QList<TreeItem *> *a0_items = pylist_to_qlist(a0, &sipIsErr);
+            QList<TreeItem *> *a0_items = pylist_to_qlist(a0, &sipIsErr, 1);
 
             if (!sipIsErr) {
-                TreeItem *a1_item = pyobject_to_treeitem(a1, &sipIsErr);
+                TreeItem *a1_item = pyobject_to_treeitem(a1, &sipIsErr, 0);
 
                 if (!sipIsErr)
                     sipCpp->appendItems(a0_items, a1_item);
@@ -149,8 +150,8 @@ class TreeModel : public QAbstractItemModel
 
         void appendItem(SIP_PYOBJECT item, SIP_PYOBJECT parent);
         %MethodCode
-            TreeItem *a0_item = pyobject_to_treeitem(a0, &sipIsErr);
-            TreeItem *a1_item = pyobject_to_treeitem(a1, &sipIsErr);
+            TreeItem *a0_item = pyobject_to_treeitem(a0, &sipIsErr, 1);
+            TreeItem *a1_item = pyobject_to_treeitem(a1, &sipIsErr, 0);
 
             if (!sipIsErr)
                 sipCpp->appendItem(a0_item, a1_item);
@@ -158,7 +159,7 @@ class TreeModel : public QAbstractItemModel
 
         void removeItem(SIP_PYOBJECT item);
         %MethodCode
-            TreeItem *a0_item = pyobject_to_treeitem(a0, &sipIsErr);
+            TreeItem *a0_item = pyobject_to_treeitem(a0, &sipIsErr, -1);
 
             if (!sipIsErr)
                 sipCpp->removeItem(a0_item);
