@@ -194,9 +194,14 @@ class TrackItem(TreeItem):
     def update(self, update_album=True):
         file = self.linked_file
         if file:
+            if file.state == file.NORMAL:
+                self._icon = FileItem._icon_saved
+            elif file.state == file.PENDING:
+                self._icon = FileItem._match_pending_icons[int(file.similarity * 5 + 0.5)]
+            else:
+                self._icon = FileItem._match_icons[int(file.similarity * 5 + 0.5)]
             self._foreground_color = TrackItem._track_colors[file.state]
             self._background_color = get_match_color(file.similarity, TreeItem._background_color)
-            self._icon = FileItem.decide_file_icon(file)
         else:
             self._foreground_color = TreeItem._foreground_color
             self._background_color = get_match_color(1, TreeItem._background_color)
@@ -244,7 +249,12 @@ class FileItem(TreeItem):
     can_browser_lookup = True
 
     def update(self):
-        self._icon = FileItem.decide_file_icon(self)
+        if self.state == self.ERROR:
+            self._icon = FileItem._icon_error
+        elif self.state == self.PENDING:
+            self._icon = FileItem._icon_pending
+        else:
+            self._icon = FileItem._icon
         self._foreground_color = FileItem._file_colors[self.state]
         self._background_color = get_match_color(self.similarity, TreeItem._background_color)
         TreeItem.update(self)
@@ -262,21 +272,6 @@ class FileItem(TreeItem):
         self.tagger.get_file_lookup().tagLookup(
                 metadata["artist"], metadata["album"], metadata["title"],
                 metadata["tracknumber"], str(metadata.length), self.filename)
-
-    def decide_file_icon(self):
-        if self.state == self.ERROR:
-            return FileItem._icon_error
-        elif isinstance(self.parent, TrackItem):
-            if self.state == self.NORMAL:
-                return FileItem._icon_saved
-            elif self.state == self.PENDING:
-                return FileItem._match_pending_icons[int(self.similarity * 5 + 0.5)]
-            else:
-                return FileItem._match_icons[int(self.similarity * 5 + 0.5)]
-        elif self.state == self.PENDING:
-            return FileItem._icon_pending
-        else:
-            return FileItem._icon
 
 
 def get_match_color(similarity, basecolor):
