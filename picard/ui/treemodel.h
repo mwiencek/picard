@@ -61,24 +61,22 @@ class TreeItem
         void setHidden(bool hidden);
 
         int childCound() const;
-        QModelIndex index() const;
         TreeItem *parentItem() const { return parent; }
 
         // Return if this object can be saved.
-        virtual const bool can_save() { return false; }
+        static const bool can_save = false;
         // Return if this object can be removed.
-        virtual const bool can_remove() { return false; }
+        static const bool can_remove = false;
         // Return if this object supports tag editing.
-        virtual const bool can_edit_tags() { return false; }
+        static const bool can_edit_tags = false;
         // Return if this object can be fingerprinted.
-        virtual const bool can_analyze() { return false; }
+        static const bool can_analyze = false;
         // Return if this object can be autotagged.
-        virtual const bool can_autotag() { return false; }
+        static const bool can_autotag = false;
         // Return if this object can be refreshed.
-        virtual const bool can_refresh() { return false; }
-        virtual const bool can_view_info() { return false; }
-        virtual const bool can_browser_lookup() { return true; }
-        virtual const bool is_album_like() { return false; }
+        static const bool can_refresh = false;
+        static const bool can_view_info = false;
+        static const bool can_browser_lookup = true;
 
         friend class TreeModel;
 };
@@ -110,7 +108,6 @@ class TreeModel : public QAbstractItemModel
         void appendItems(QList<TreeItem *> *items, TreeItem *parent);
         void appendItem(TreeItem *item, TreeItem *parent);
         void removeItem(TreeItem *item);
-        void removeItems(QList<TreeItem *> *items);
         void clearChildren(TreeItem *parent);
 
         friend class TreeItem;

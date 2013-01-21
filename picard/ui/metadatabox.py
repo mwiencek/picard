@@ -230,7 +230,7 @@ class MetadataBox(QtGui.QTableWidget):
                 if status == TagStatus.Changed or status == TagStatus.Removed:
                     for file in self.files:
                         objects = [file]
-                        if file.parent in self.tracks and len(self.files & set(file.parent.linked_files)) == 1:
+                        if file.parent in self.tracks:
                             objects.append(file.parent)
                         orig_values = list(file.orig_metadata.getall(tag)) or [""]
                         useorigs.append(partial(self.set_tag_values, tag, orig_values, objects))
@@ -303,20 +303,22 @@ class MetadataBox(QtGui.QTableWidget):
         files.clear()
         tracks.clear()
         objects.clear()
-        for obj in self.parent.panel._selected_objects:
+        for obj in self.parent.selected_objects:
             if isinstance(obj, File):
                 files.add(obj)
             elif isinstance(obj, Track):
                 tracks.add(obj)
-                files.update(obj.linked_files)
-            elif isinstance(obj, Cluster) and obj.can_edit_tags():
+                if obj.linked_file:
+                    files.add(obj.linked_file)
+            elif isinstance(obj, Cluster) and obj.can_edit_tags:
                 objects.add(obj)
                 files.update(obj.files)
             elif isinstance(obj, Album):
                 objects.add(obj)
                 tracks.update(obj.tracks)
                 for track in obj.tracks:
-                    files.update(track.linked_files)
+                    if track.linked_file:
+                        files.add(track.linked_file)
         objects.update(files)
         objects.update(tracks)
         self.selection_dirty = False
@@ -367,7 +369,7 @@ class MetadataBox(QtGui.QTableWidget):
                 tag_diff.add(name, orig_values, new_values, clear_existing_tags)
 
         for track in self.tracks:
-            if track.num_linked_files == 0:
+            if track.linked_file is None:
                 for name, values in dict.iteritems(track.metadata):
                     if not name.startswith("~") or name == "~length":
                         tag_diff.add(name, values, values, True)

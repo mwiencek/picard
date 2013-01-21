@@ -29,7 +29,7 @@ from collections import defaultdict
 from PyQt4 import QtCore
 from picard.track import Track
 from picard.metadata import Metadata
-from picard.ui.item import Item
+from picard.ui.itemmodels import FileItem
 from picard.script import ScriptParser
 from picard.similarity import similarity2
 from picard.util import (
@@ -48,9 +48,8 @@ from picard.util import (
     )
 
 
-class File(QtCore.QObject, Item):
+class File(FileItem):
 
-    UNDEFINED = -1
     PENDING = 0
     NORMAL = 1
     CHANGED = 2
@@ -72,18 +71,17 @@ class File(QtCore.QObject, Item):
         super(File, self).__init__()
         self.filename = filename
         self.base_filename = os.path.basename(filename)
-        self._state = File.UNDEFINED
-        self.state = File.PENDING
+
+        self._state = File.PENDING
         self.error = None
+        self.similarity = 1.0
+        self.parent = self.tagger.unmatched_files
+        self.lookup_task = None
 
         self.orig_metadata = Metadata()
         self.metadata = Metadata()
 
-        self.similarity = 1.0
-        self.parent = None
-
-        self.lookup_task = None
-        self.item = None
+        FileItem.update(self)
 
     def __repr__(self):
         return '<File %r>' % self.base_filename
@@ -125,14 +123,17 @@ class File(QtCore.QObject, Item):
         self.orig_metadata.copy(metadata)
         self.metadata = metadata
 
+    _preserved_hidden_tags = [
+        "~bitrate", "~bits_per_sample", "format", "~channels", "~filename",
+        "~dirname", "~extension"
+    ]
+
     def copy_metadata(self, metadata):
         acoustid = self.metadata["acoustid_id"]
-        preserve = self.config.setting["preserved_tags"].strip() + " ".join([
-                "~bitrate", "~bits_per_sample", "format", "~channels",
-                "~filename", "~dirname", "~extension"])
+        preserve = self.config.setting["preserved_tags"].strip()
         saved_metadata = {}
 
-        for tag in re.split(r"\s+", preserve):
+        for tag in re.split(r"\s+", preserve) + File._preserved_hidden_tags:
             values = self.orig_metadata.getall(tag)
             if values:
                 saved_metadata[tag] = values
@@ -210,7 +211,8 @@ class File(QtCore.QObject, Item):
         old_filename = new_filename = self.filename
         if error is not None:
             self.error = str(error)
-            self.set_state(File.ERROR, update=True)
+            self.state = File.ERROR
+            self.update()
         else:
             self.filename = new_filename = result
             self.base_filename = os.path.basename(new_filename)
@@ -377,15 +379,20 @@ class File(QtCore.QObject, Item):
                 shutil.move(old_file, new_file)
 
     def remove(self, from_parent=True):
+        if self.state == File.REMOVED:
+            return
         if from_parent and self.parent:
             self.log.debug("Removing %r from %r", self, self.parent)
             self.parent.remove_file(self)
+        self.clear_lookup_task()
+        self.tagger._acoustid.stop_analyze(self)
         self.tagger.acoustidmanager.remove(self)
         self.state = File.REMOVED
+        del self.tagger.files[self.filename]
 
     def move(self, parent):
         if parent != self.parent:
-            self.log.debug("Moving %r from %r to %r", self, self.parent, parent)
+            #self.log.debug("Moving %r from %r to %r", self, self.parent, parent)
             self.clear_lookup_task()
             self.tagger._acoustid.stop_analyze(file)
             if self.parent:
@@ -395,14 +402,6 @@ class File(QtCore.QObject, Item):
             self.parent.add_file(self)
             self.tagger.acoustidmanager.update(self, self.metadata['musicbrainz_trackid'])
 
-    def _move(self, parent):
-        if parent != self.parent:
-            self.log.debug("Moving %r from %r to %r", self, self.parent, parent)
-            if self.parent:
-                self.parent.remove_file(self)
-            self.parent = parent
-            self.tagger.acoustidmanager.update(self, self.metadata['musicbrainz_trackid'])
-
     def supports_tag(self, name):
         """Returns whether tag ``name`` can be saved to the file."""
         return True
@@ -410,7 +409,7 @@ class File(QtCore.QObject, Item):
     def is_saved(self):
         return self.similarity == 1.0 and self.state == File.NORMAL
 
-    def update(self, signal=True):
+    def update(self):
         names = set(self.metadata.keys())
         names.update(self.orig_metadata.keys())
         clear_existing_tags = self.config.setting["clear_existing_tags"]
@@ -429,35 +428,8 @@ class File(QtCore.QObject, Item):
             self.similarity = 1.0
             if self.state in (File.CHANGED, File.NORMAL):
                 self.state = File.NORMAL
-        if signal:
-            self.log.debug("Updating file %r", self)
-            if self.item:
-                self.item.update()
-
-    def can_save(self):
-        """Return if this object can be saved."""
-        return True
-
-    def can_remove(self):
-        """Return if this object can be removed."""
-        return True
-
-    def can_edit_tags(self):
-        """Return if this object supports tag editing."""
-        return True
-
-    def can_analyze(self):
-        """Return if this object can be fingerprinted."""
-        return True
-
-    def can_autotag(self):
-        return True
-
-    def can_refresh(self):
-        return False
-
-    def can_view_info(self):
-        return True
+        #self.log.debug("Updating file %r", self)
+        FileItem.update(self)
 
     def _info(self, metadata, file):
         if hasattr(file.info, 'length'):
@@ -479,31 +451,18 @@ class File(QtCore.QObject, Item):
         metadata['~filename'] = filename
         metadata['~extension'] = extension.lower()[1:]
 
-    def get_state(self):
+    @property
+    def state(self):
         return self._state
 
-    # in order to significantly speed up performance, the number of pending
-    #  files is cached
-    num_pending_files = 0
-
-    def set_state(self, state, update=False):
+    @state.setter
+    def state(self, state):
         if state != self._state:
             if state == File.PENDING:
-                File.num_pending_files += 1
+                self.tagger.num_pending_files += 1
             elif self._state == File.PENDING:
-                File.num_pending_files -= 1
+                self.tagger.num_pending_files -= 1
         self._state = state
-        if update:
-            self.update()
-        self.tagger.file_state_changed.emit(File.num_pending_files)
-
-    state = property(get_state, set_state)
-
-    def column(self, column):
-        m = self.metadata
-        if column == "title" and not m["title"]:
-            return self.base_filename
-        return m[column]
 
     def _lookup_finished(self, lookuptype, document, http, error):
         self.lookup_task = None
@@ -538,14 +497,14 @@ class File(QtCore.QObject, Item):
                 self.clear_pending()
                 return
         self.tagger.window.set_statusbar_message(N_("File %s identified!"), self.filename, timeout=3000)
-        self.clear_pending()
 
         rg, release, track = match[1:]
         if lookuptype == 'acoustid':
             self.tagger.acoustidmanager.add(self, track.id)
         if release:
+            self.metadata["musicbrainz_trackid"] = track.id
             self.tagger.get_release_group_by_id(rg.id).loaded_albums.add(release.id)
-            self.tagger.move_file_to_track(self, release.id, track.id)
+            self.tagger.load_album(release.id).match_files([self])
         else:
             self.tagger.move_file_to_nat(self, track.id, node=track)
 
@@ -553,16 +512,18 @@ class File(QtCore.QObject, Item):
         """ Try to identify the file using the existing metadata. """
         self.tagger.window.set_statusbar_message(N_("Looking up the metadata for file %s..."), self.filename)
         self.clear_lookup_task()
+        self.set_pending()
         metadata = self.metadata
-        self.lookup_task = self.tagger.xmlws.find_tracks(partial(self._lookup_finished, 'metadata'),
-            track=metadata['title'],
-            artist=metadata['artist'],
-            release=metadata['album'],
-            tnum=metadata['tracknumber'],
-            tracks=metadata['totaltracks'],
-            qdur=str(metadata.length / 2000),
-            isrc=metadata['isrc'],
-            limit=25)
+        self.lookup_task = self.tagger.xmlws.find_tracks(
+                partial(self._lookup_finished, 'metadata'),
+                track=metadata['title'],
+                artist=metadata['artist'],
+                release=metadata['album'],
+                tnum=metadata['tracknumber'],
+                tracks=metadata['totaltracks'],
+                qdur=str(metadata.length / 2000),
+                isrc=metadata['isrc'],
+                limit=25)
 
     def clear_lookup_task(self):
         if self.lookup_task:
@@ -572,14 +533,14 @@ class File(QtCore.QObject, Item):
     def set_pending(self):
         if self.state != File.REMOVED:
             self.state = File.PENDING
-            self.update()
+            FileItem.update(self)
 
     def clear_pending(self):
         if self.state == File.PENDING:
             self.state = File.NORMAL
-            self.update()
+            FileItem.update(self)
 
-    def iterfiles(self, save=False):
+    def iterfiles(self):
         yield self
 
     def _get_tracknumber(self):

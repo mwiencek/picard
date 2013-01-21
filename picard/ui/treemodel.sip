@@ -102,18 +102,16 @@ class TreeItem
         void setHidden(bool hidden);
 
         int childCound() const;
-        QModelIndex index() const;
         TreeItem *parentItem() const;
 
-        virtual const bool can_save();
-        virtual const bool can_remove();
-        virtual const bool can_edit_tags();
-        virtual const bool can_analyze();
-        virtual const bool can_autotag();
-        virtual const bool can_refresh();
-        virtual const bool can_view_info();
-        virtual const bool can_browser_lookup();
-        virtual const bool is_album_like();
+        static const bool can_save;
+        static const bool can_remove;
+        static const bool can_edit_tags;
+        static const bool can_analyze;
+        static const bool can_autotag;
+        static const bool can_refresh;
+        static const bool can_view_info;
+        static const bool can_browser_lookup;
 };
 
 

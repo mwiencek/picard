@@ -211,7 +211,6 @@ class MainWindow(QtGui.QMainWindow):
                                           " information when you click the \"Tagger\" buttons on the MusicBrainz website"))
         self.statusBar().addPermanentWidget(self.file_counts_label)
         self.statusBar().addPermanentWidget(self.listening_label)
-        self.tagger.file_state_changed.connect(self.update_statusbar_files)
         self.tagger.listen_port_changed.connect(self.update_statusbar_listen_port)
         self.update_statusbar_files(0)
 
@@ -687,7 +686,9 @@ been merged with that of single artist albums."""),
         self.tagger.refresh(self.selected_objects)
 
     def browser_lookup(self):
-        self.tagger.browser_lookup(self.selected_objects[0])
+        item = self.selected_objects[0]
+        if item.can_browser_lookup:
+            item.browser_lookup()
 
     def update_actions(self):
         can_remove = False
@@ -696,22 +697,17 @@ been merged with that of single artist albums."""),
         can_refresh = False
         can_autotag = False
         single = self.selected_objects[0] if len(self.selected_objects) == 1 else None
-        can_view_info = bool(single and single.can_view_info())
-        can_browser_lookup = bool(single and single.can_browser_lookup())
+        can_view_info = bool(single and single.can_view_info)
+        can_browser_lookup = bool(single and single.can_browser_lookup)
         for obj in self.selected_objects:
             if obj is None:
                 continue
-            if obj.can_analyze():
-                can_analyze = True
-            if obj.can_save():
-                can_save = True
-            if obj.can_remove():
-                can_remove = True
-            if obj.can_refresh():
-                can_refresh = True
-            if obj.can_autotag():
-                can_autotag = True
-            if can_save and can_remove and can_refresh and can_autotag:
+            can_analyze |= obj.can_analyze
+            can_save |= obj.can_save
+            can_remove |= obj.can_remove
+            can_refresh |= obj.can_refresh
+            can_autotag |= obj.can_autotag
+            if can_analyze and can_save and can_remove and can_refresh and can_autotag:
                 break
         self.remove_action.setEnabled(can_remove)
         self.save_action.setEnabled(can_save)
@@ -746,12 +742,12 @@ been merged with that of single artist albums."""),
                     statusbar += _(" (Error: %s)") % obj.error
             elif isinstance(obj, Track):
                 metadata = obj.metadata
-                if obj.num_linked_files == 1:
-                    file = obj.linked_files[0]
+                file = obj.linked_file
+                if file:
                     statusbar = "%s (%d%%)" % (file.filename, file.similarity * 100)
                     if file.state == File.ERROR:
                         statusbar += _(" (Error: %s)") % file.error
-            elif obj.can_edit_tags():
+            elif obj.can_edit_tags:
                 metadata = obj.metadata
 
         self.metadata_box.update_selection()
@@ -790,7 +786,7 @@ been merged with that of single artist albums."""),
         self.tagger.autotag(self.selected_objects)
 
     def cut(self):
-        self._clipboard = self.selected_objects
+        self._clipboard = self.tagger.get_files_from_objects(self.selected_objects)
         self.paste_action.setEnabled(bool(self._clipboard))
 
     def paste(self):
@@ -799,6 +795,6 @@ been merged with that of single artist albums."""),
             target = self.tagger.unmatched_files
         else:
             target = selected_objects[0]
-        self.tagger.move_files(self.tagger.get_files_from_objects(self._clipboard), target)
+        target.drop_files(self._clipboard)
         self._clipboard = []
         self.paste_action.setEnabled(False)

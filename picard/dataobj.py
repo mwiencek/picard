@@ -17,15 +17,15 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
 
-from picard.util import LockableObject
+from picard.metadata import Metadata
 
-class DataObject(LockableObject):
+
+class DataObject:
 
     def __init__(self, id):
-        LockableObject.__init__(self)
         self.id = id
+        self.metadata = Metadata()
         self.folksonomy_tags = {}
-        self.item = None
 
     def add_folksonomy_tag(self, name, count):
         self.folksonomy_tags[name] = self.folksonomy_tags.get(name, 0) + count

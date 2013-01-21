@@ -21,15 +21,20 @@
 import re
 from operator import itemgetter
 from heapq import heappush, heappop
+from UserDict import UserDict
 from PyQt4 import QtCore
 from picard.metadata import Metadata
 from picard.similarity import similarity2, similarity
-from picard.ui.item import Item
+from picard.ui.itemmodels import TreeItem, ClusterItem
 from picard.util import format_time
 from picard.mbxml import artist_credit_from_node
 
 
-class Cluster(QtCore.QObject, Item):
+class Cluster(ClusterItem):
+
+    PENDING = 0
+    NORMAL = 1
+    REMOVED = 2
 
     # Weights for different elements when comparing a cluster to a release
     comparison_weights = {
@@ -40,18 +45,16 @@ class Cluster(QtCore.QObject, Item):
         'format': 2,
     }
 
-    def __init__(self, name, artist="", special=False, related_album=None, hide_if_empty=False):
-        QtCore.QObject.__init__(self)
-        self.item = None
+    def __init__(self, name, artist=""):
+        super(Cluster, self).__init__()
         self.metadata = Metadata()
         self.metadata['album'] = name
         self.metadata['albumartist'] = artist
         self.metadata['totaltracks'] = 0
-        self.special = special
-        self.hide_if_empty = hide_if_empty
-        self.related_album = related_album
+        self.key = (name, artist)
         self.files = []
         self.lookup_task = None
+        self.state = Cluster.NORMAL
 
     def __repr__(self):
         return '<Cluster %r>' % self.metadata['album']
@@ -59,86 +62,50 @@ class Cluster(QtCore.QObject, Item):
     def __len__(self):
         return len(self.files)
 
-    def add_files(self, files):
-        for file in files:
-            self.metadata.length += file.metadata.length
-            file._move(self)
-            file.update(signal=False)
-        self.files.extend(files)
-        self.metadata['totaltracks'] = len(self.files)
-        self.item.add_files(files)
-
     def add_file(self, file):
-        self.metadata.length += file.metadata.length
         self.files.append(file)
-        self.metadata['totaltracks'] = len(self.files)
-        file._move(self)
-        file.update(signal=False)
-        self.item.add_file(file)
+        self.appendChild(file)
+        self.metadata.length += file.metadata.length
+        self.metadata["totaltracks"] = len(self.files)
+        file.update()
+        ClusterItem.update(self)
 
     def remove_file(self, file):
-        self.metadata.length -= file.metadata.length
         self.files.remove(file)
-        self.metadata['totaltracks'] = len(self.files)
-        self.item.remove_file(file)
-        if not self.special and self.get_num_files() == 0:
-            self.tagger.remove_cluster(self)
+        self.removeChild(file)
+        self.metadata.length -= file.metadata.length
+        self.metadata["totaltracks"] = len(self.files)
+        ClusterItem.update(self)
+        if not len(self):
+            self.remove()
 
-    def update(self):
-        if self.item:
-            self.item.update()
-
-    def get_num_files(self):
-        return len(self.files)
-
-    def iterfiles(self, save=False):
+    def iterfiles(self):
         for file in self.files:
             yield file
 
-    def can_save(self):
-        """Return if this object can be saved."""
-        if self.files:
-            return True
-        else:
-            return False
+    def update(self):
+        key = (self.metadata["album"], self.metadata["albumartist"])
+        if self.key != key:
+            self.tagger.clusters[key] = self.tagger.clusters.pop(self.key)
+            self.key = key
+        ClusterItem.update(self)
 
-    def can_remove(self):
-        """Return if this object can be removed."""
-        return not self.special
-
-    def can_edit_tags(self):
-        """Return if this object supports tag editing."""
-        return True
-
-    def can_analyze(self):
-        """Return if this object can be fingerprinted."""
-        return any([_file.can_analyze() for _file in self.files])
-
-    def can_autotag(self):
-        return True
-
-    def can_refresh(self):
-        return False
-
-    def can_browser_lookup(self):
-        return not self.special
-
-    def is_album_like(self):
-        return True
-
-    def column(self, column):
-        if column == 'title':
-            return '%s (%d)' % (self.metadata['album'], len(self.files))
-        elif (column == '~length' and self.special) or column == 'album':
-            return ''
-        elif column == '~length':
-            return format_time(self.metadata.length)
-        elif column == 'artist':
-            return self.metadata['albumartist']
-        return self.metadata[column]
+    def remove(self):
+        self.log.debug("Removing %r", self)
+        self.state = Cluster.REMOVED
+        self.clear_lookup_task()
+        for file in self.files:
+            file.remove(from_parent=False)
+        del self.tagger.clusters[self.key]
+        self.tagger.clusters.removeChild(self)
 
     def _lookup_finished(self, document, http, error):
+        if self.state == Cluster.REMOVED:
+            return
+
         self.lookup_task = None
+        self.state = Cluster.NORMAL
+        ClusterItem.update(self)
 
         try:
             releases = document.metadata[0].release_list[0].release
@@ -159,16 +126,19 @@ class Cluster(QtCore.QObject, Item):
             self.tagger.window.set_statusbar_message(N_("No matching releases for cluster %s"), self.metadata['album'], timeout=3000)
             return
         self.tagger.window.set_statusbar_message(N_("Cluster %s identified!"), self.metadata['album'], timeout=3000)
-        self.tagger.move_files_to_album(self.files, match[1].id)
+        self.tagger.load_album(match[1].id).match_files(self.files)
 
     def lookup_metadata(self):
         """ Try to identify the cluster using the existing metadata. """
         self.tagger.window.set_statusbar_message(N_("Looking up the metadata for cluster %s..."), self.metadata['album'])
-        self.lookup_task = self.tagger.xmlws.find_releases(self._lookup_finished,
-            artist=self.metadata['albumartist'],
-            release=self.metadata['album'],
-            tracks=str(len(self.files)),
-            limit=25)
+        self.state = Cluster.PENDING
+        ClusterItem.update(self)
+        self.lookup_task = self.tagger.xmlws.find_releases(
+                self._lookup_finished,
+                artist=self.metadata['albumartist'],
+                release=self.metadata['album'],
+                tracks=str(len(self.files)),
+                limit=25)
 
     def clear_lookup_task(self):
         if self.lookup_task:
@@ -227,56 +197,83 @@ class Cluster(QtCore.QObject, Item):
 class UnmatchedFiles(Cluster):
     """Special cluster for 'Unmatched Files' which have no PUID and have not been clustered."""
 
-    def __init__(self):
-        super(UnmatchedFiles, self).__init__(_(u"Unmatched Files"), special=True)
+    can_remove = False
+    can_edit_tags = False
+    can_browser_lookup = False
 
-    def add_files(self, files):
-        Cluster.add_files(self, files)
-        self.tagger.window.enable_cluster(self.get_num_files() > 0)
+    def __init__(self):
+        super(UnmatchedFiles, self).__init__(_(u"Unmatched Files"))
+
+    def add_new_files(self, files):
+        self.files.extend(files)
+        self.appendChildren(files)
+        self.metadata.length += sum(f.metadata.length for f in files)
+        self.update()
+        self.tagger.window.enable_cluster(True)
+        self.tagger.num_pending_files += len(files)
 
     def add_file(self, file):
         Cluster.add_file(self, file)
-        self.tagger.window.enable_cluster(self.get_num_files() > 0)
+        self.tagger.window.enable_cluster(len(self) > 0)
 
     def remove_file(self, file):
         Cluster.remove_file(self, file)
-        self.tagger.window.enable_cluster(self.get_num_files() > 0)
+        self.tagger.window.enable_cluster(len(self) > 0)
 
     def lookup_metadata(self):
         self.tagger.autotag(self.files)
 
-    def can_edit_tags(self):
-        return False
+    def remove(self):
+        pass
 
+    def column(self, column):
+        if column == "~length":
+            return ""
+        return ClusterItem.column(self, column)
+
+    @property
     def can_autotag(self):
         return len(self.files) > 0
 
 
-class ClusterList(list, Item):
-    """A list of clusters."""
+class ClusterList(UserDict, TreeItem):
+
+    can_browser_lookup = False
 
     def __init__(self):
-        super(ClusterList, self).__init__()
+        UserDict.__init__(self)
+        TreeItem.__init__(self)
 
     def __hash__(self):
         return id(self)
 
+    def __nonzero__(self):
+        return True
+
     def iterfiles(self, save=False):
-        for cluster in self:
-            for file in cluster.iterfiles(save):
+        for cluster in self.itervalues():
+            for file in cluster.iterfiles():
                 yield file
 
+    def drop_files(self, files):
+        self.tagger.cluster(files)
+
+    def column(self, column):
+        if column == "title":
+            return _("Clusters")
+        return ""
+
+    @property
     def can_save(self):
         return len(self) > 0
 
+    @property
     def can_analyze(self):
-        return any([cluster.can_analyze() for cluster in self])
+        return any(cluster.can_analyze for cluster in self.itervalues())
 
+    @property
     def can_autotag(self):
         return len(self) > 0
-
-    def can_browser_lookup(self):
-        return False
 
 
 class ClusterDict(object):
@@ -465,7 +462,3 @@ class ClusterEngine(object):
                 del self.clusterBins[match1]
 
         return self.clusterBins
-
-    def can_refresh(self):
-        return False
-

@@ -24,7 +24,7 @@ from picard.util import asciipunct, partial
 from picard.mbxml import recording_to_metadata
 from picard.script import ScriptParser
 from picard.const import VARIOUS_ARTISTS_ID
-from picard.ui.item import Item
+from picard.ui.itemmodels import TrackItem
 import traceback
 
 
@@ -35,81 +35,46 @@ _TRANSLATE_TAGS = {
 }
 
 
-class Track(DataObject, Item):
+class Track(TrackItem, DataObject):
 
-    def __init__(self, id, album=None):
+    def __init__(self, id, album):
+        TrackItem.__init__(self)
         DataObject.__init__(self, id)
         self.album = album
-        self.linked_files = []
-        self.num_linked_files = 0
-        self.metadata = Metadata()
+        self.linked_file = None
 
     def __repr__(self):
         return '<Track %s %r>' % (self.id, self.metadata["title"])
 
     def add_file(self, file):
-        if file not in self.linked_files:
-            self.linked_files.append(file)
-            self.num_linked_files += 1
-        self.album._add_file(self, file)
+        if self.linked_file:
+            self.linked_file.move(self.tagger.unmatched_files)
+        self.linked_file = file
+        self.album._files += 1
         self.update_file_metadata(file)
 
     def update_file_metadata(self, file):
-        if file not in self.linked_files:
-            return
         file.copy_metadata(self.metadata)
-        file.metadata['~extension'] = file.orig_metadata['~extension']
-        file.metadata.changed = True
-        file.update(signal=False)
+        file.update()
         self.update()
 
     def remove_file(self, file):
-        if file not in self.linked_files:
-            return
-        self.linked_files.remove(file)
-        self.num_linked_files -= 1
-        file.copy_metadata(file.orig_metadata)
-        self.album._remove_file(self, file)
-        self.update()
+        if file is self.linked_file:
+            self.linked_file = None
+            self.album._files -= 1
+            file.copy_metadata(file.orig_metadata)
+            self.update()
 
-    def update(self):
-        if self.item:
-            self.item.update()
+    def iterfiles(self):
+        if self.linked_file:
+            yield self.linked_file
 
-    def iterfiles(self, save=False):
-        for file in self.linked_files:
-            yield file
+    @property
+    def linked_files(self):
+        return [self.linked_file] if self.linked_file else []
 
     def is_linked(self):
-        return self.num_linked_files > 0
-
-    def can_save(self):
-        """Return if this object can be saved."""
-        for file in self.linked_files:
-            if file.can_save():
-                return True
-        return False
-
-    def can_remove(self):
-        """Return if this object can be removed."""
-        for file in self.linked_files:
-            if file.can_remove():
-                return True
-        return False
-
-    def can_edit_tags(self):
-        """Return if this object supports tag editing."""
-        return True
-
-    def can_view_info(self):
-        return self.num_linked_files == 1
-
-    def column(self, column):
-        m = self.metadata
-        if column == 'title':
-            prefix = "%s-" % m['discnumber'] if m['discnumber'] and m['totaldiscs'] != "1" else ""
-            return u"%s%s  %s" % (prefix, m['tracknumber'].zfill(2), m['title'])
-        return m[column]
+        return self.linked_file is not None
 
     def _customize_metadata(self):
         tm = self.metadata
@@ -127,10 +92,11 @@ class Track(DataObject, Item):
 
     def _convert_folksonomy_tags_to_genre(self):
         # Combine release and track tags
+        album = self.album
         tags = dict(self.folksonomy_tags)
-        self.merge_folksonomy_tags(tags, self.album.folksonomy_tags)
-        if self.album.release_group:
-            self.merge_folksonomy_tags(tags, self.album.release_group.folksonomy_tags)
+        self.merge_folksonomy_tags(tags, album.folksonomy_tags)
+        if album.release_group:
+            self.merge_folksonomy_tags(tags, album.release_group.folksonomy_tags)
         if not tags:
             return
         # Convert counts to values from 0 to 100
@@ -156,16 +122,19 @@ class Track(DataObject, Item):
             genre = [join_tags.join(genre)]
         self.metadata['genre'] = genre
 
+    def remove(self):
+        if self.linked_file:
+            self.linked_file.remove()
+
 
 class NonAlbumTrack(Track):
 
+    can_refresh = True
+
     def __init__(self, id):
-        Track.__init__(self, id, self.tagger.nats)
+        Track.__init__(self, id)
         self.callback = None
         self.loaded = False
-
-    def can_refresh(self):
-        return True
 
     def column(self, column):
         if column == "title":
@@ -201,8 +170,8 @@ class NonAlbumTrack(Track):
         try:
             recording = document.metadata[0].recording[0]
             self._parse_recording(recording)
-            for file in self.linked_files:
-                self.update_file_metadata(file)
+            if self.linked_file:
+                self.update_file_metadata(self.linked_file)
         except:
             self.log.error(traceback.format_exc())
 

@@ -29,8 +29,8 @@ from picard.dataobj import DataObject
 from picard.file import File
 from picard.track import Track
 from picard.script import ScriptParser
-from picard.ui.item import Item
-from picard.util import format_time, queue, mbid_validate, asciipunct
+from picard.ui.itemmodels import AlbumItem
+from picard.util import format_time, mbid_validate, asciipunct
 from picard.cluster import Cluster
 from picard.collection import Collection, user_collections, load_user_collections
 from picard.mbxml import (
@@ -44,13 +44,13 @@ from picard.const import VARIOUS_ARTISTS_ID
 register_album_metadata_processor(coverart)
 
 
-class Album(DataObject, Item):
+class Album(AlbumItem, DataObject):
 
     release_group_loaded = QtCore.pyqtSignal()
 
     def __init__(self, id, discid=None):
+        AlbumItem.__init__(self)
         DataObject.__init__(self, id)
-        self.metadata = Metadata()
         self.tracks = []
         self.loaded = False
         self.load_task = None
@@ -59,18 +59,14 @@ class Album(DataObject, Item):
         self._requests = 0
         self._tracks_loaded = False
         self._discid = discid
-        self._after_load_callbacks = queue.Queue()
-        self.unmatched_files = Cluster(_("Unmatched Files"), special=True, related_album=self, hide_if_empty=True)
+        self._pending_files = []
 
     def __repr__(self):
         return '<Album %s %r>' % (self.id, self.metadata[u"album"])
 
-    def iterfiles(self, save=False):
+    def iterfiles(self):
         for track in self.tracks:
             for file in track.iterfiles():
-                yield file
-        if not save:
-            for file in self.unmatched_files.iterfiles():
                 yield file
 
     def _parse_release(self, document):
@@ -83,9 +79,9 @@ class Album(DataObject, Item):
             album = self.tagger.albums.get(release_node.id)
             if album:
                 self.log.debug("Release %r already loaded", release_node.id)
-                album.match_files(self.unmatched_files.files)
+                album.match_files(self._pending_files)
                 album.update()
-                self.tagger.remove_album(self)
+                self.remove()
                 return False
             else:
                 del self.tagger.albums[self.id]
@@ -147,15 +143,16 @@ class Album(DataObject, Item):
                 if error == QtNetwork.QNetworkReply.ContentNotFoundError:
                     nats = False
                     nat_name = self.config.setting["nat_name"]
-                    files = list(self.unmatched_files.files)
-                    for file in files:
+
+                    for file in list(self._pending_files):
                         trackid = file.metadata["musicbrainz_trackid"]
                         if mbid_validate(trackid) and file.metadata["album"] == nat_name:
                             nats = True
                             self.tagger.move_file_to_nat(file, trackid)
                             self.tagger.nats.update()
-                    if nats and not self.get_num_unmatched_files():
-                        self.tagger.remove_album(self)
+
+                    if nats:
+                        self.remove()
                         error = False
             else:
                 try:
@@ -247,20 +244,22 @@ class Album(DataObject, Item):
                         self.log.error(traceback.format_exc())
                     self._new_metadata.strip_whitespace()
 
-            for track in self.tracks:
-                for file in list(track.linked_files):
-                    file.move(self.unmatched_files)
+            old_tracks = list(self.tracks)
             self.metadata = self._new_metadata
             self.tracks = self._new_tracks
             del self._new_metadata
             del self._new_tracks
             self.loaded = True
-            self.match_files(self.unmatched_files.files)
+
+            for track in old_tracks:
+                if track.linked_file:
+                    self._pending_files.append(track.linked_file)
+
+            self.match_files(self._pending_files)
+            self._pending_files = []
+
             self.update()
             self.tagger.window.set_statusbar_message(_('Album %s loaded'), self.id, timeout=3000)
-            while self._after_load_callbacks.qsize() > 0:
-                func = self._after_load_callbacks.get()
-                func()
 
     def load(self):
         if self._requests:
@@ -298,37 +297,22 @@ class Album(DataObject, Item):
             self.id, self._release_request_finished, inc=inc,
             mblogin=require_authentication)
 
-    def run_when_loaded(self, func):
-        if self.loaded:
-            func()
-        else:
-            self._after_load_callbacks.put(func)
-
     def stop_loading(self):
         if self.load_task:
             self.tagger.xmlws.remove_task(self.load_task)
             self.load_task = None
 
-    def update(self, update_tracks=True):
-        if self.item:
-            self.item.update(update_tracks)
-
-    def _add_file(self, track, file):
-        self._files += 1
-        self.update(update_tracks=False)
-
-    def _remove_file(self, track, file):
-        self._files -= 1
-        self.update(update_tracks=False)
-
-    def match_files(self, files, use_trackid=True):
+    def match_files(self, files, unmatched=True):
         """Match files to tracks on this album, based on metadata similarity or trackid."""
+        if not self.loaded:
+            self._pending_files.extend(files)
+            return
         for file in list(files):
             if file.state == File.REMOVED:
                 continue
             matches = []
             trackid = file.metadata['musicbrainz_trackid']
-            if use_trackid and mbid_validate(trackid):
+            if mbid_validate(trackid):
                 matches = self._get_trackid_matches(file, trackid)
             if not matches:
                 for track in self.tracks:
@@ -338,20 +322,8 @@ class Album(DataObject, Item):
             if matches:
                 matches.sort(reverse=True)
                 file.move(matches[0][1])
-            else:
-                file.move(self.unmatched_files)
-
-    def match_file(self, file, trackid=None):
-        """Match the file on a track on this album, based on trackid or metadata similarity."""
-        if file.state == File.REMOVED:
-            return
-        if trackid is not None:
-            matches = self._get_trackid_matches(file, trackid)
-            if matches:
-                matches.sort(reverse=True)
-                file.move(matches[0][1])
-                return
-        self.match_files([file], use_trackid=False)
+            elif unmatched:
+                file.move(self.tagger.unmatched_files)
 
     def _get_trackid_matches(self, file, trackid):
         matches = []
@@ -370,94 +342,26 @@ class Album(DataObject, Item):
                     matches.append((2.0, track))
         return matches
 
-    def can_save(self):
-        return self._files > 0
-
-    def can_remove(self):
-        return True
-
-    def can_edit_tags(self):
-        return True
-
-    def can_analyze(self):
-        return False
-
-    def can_autotag(self):
-        return False
-
-    def can_refresh(self):
-        return True
-
-    def is_album_like(self):
-        return True
-
     def get_num_matched_tracks(self):
-        num = 0
-        for track in self.tracks:
-            if track.is_linked():
-                num += 1
-        return num
-
-    def get_num_unmatched_files(self):
-        return len(self.unmatched_files.files)
+        return sum(1 for t in self.tracks if t.is_linked())
 
     def is_complete(self):
         if not self.tracks:
             return False
-        for track in self.tracks:
-            if track.num_linked_files != 1:
-                return False
-        else:
-            return True
+        return all(t.linked_file is not None for t in self.tracks)
 
     def get_num_unsaved_files(self):
-        count = 0
-        for track in self.tracks:
-            for file in track.linked_files:
-                if not file.is_saved():
-                    count+=1
-        return count
-
-    def column(self, column):
-        if column == 'title':
-            if self.tracks:
-                linked_tracks = 0
-                for track in self.tracks:
-                    if track.is_linked():
-                        linked_tracks+=1
-                text = u'%s\u200E (%d/%d' % (self.metadata['album'], linked_tracks, len(self.tracks))
-                unmatched = self.get_num_unmatched_files()
-                if unmatched:
-                    text += '; %d?' % (unmatched,)
-                unsaved = self.get_num_unsaved_files()
-                if unsaved:
-                    text += '; %d*' % (unsaved,)
-                text += ungettext("; %i image", "; %i images",
-                        len(self.metadata.images)) % len(self.metadata.images)
-                return text + ')'
-            else:
-                return self.metadata['album']
-        elif column == '~length':
-            length = self.metadata.length
-            if length:
-                return format_time(length)
-            else:
-                return ''
-        elif column == 'artist':
-            return self.metadata['albumartist']
-        else:
-            return ''
+        return sum(1 for t in self.tracks if t.linked_file and not t.linked_file.is_saved())
 
     def switch_release_version(self, mbid):
         if mbid == self.id:
             return
-        for file in list(self.iterfiles(True)):
-            file.move(self.unmatched_files)
+        files = list(self.iterfiles())
         album = self.tagger.albums.get(mbid)
         if album:
-            album.match_files(self.unmatched_files.files)
+            album.match_files(files)
             album.update()
-            self.tagger.remove_album(self)
+            self.remove()
         else:
             del self.tagger.albums[self.id]
             self.release_group.loaded_albums.discard(self.id)
@@ -465,8 +369,23 @@ class Album(DataObject, Item):
             self.tagger.albums[mbid] = self
             self.load()
 
+    def remove(self):
+        self.log.debug("Removing %r", self)
+        self.stop_loading()
+        for file in self.iterfiles():
+            file.remove()
+        if self.release_group:
+            self.release_group.remove_album(self.id)
+        if self == self.tagger.nats:
+            self.tagger.nats = None
+        del self.tagger.albums[self.id]
+        self.tagger.album_removed.emit(self)
+
 
 class NatAlbum(Album):
+
+    can_refresh = False
+    can_browser_lookup = False
 
     def __init__(self):
         Album.__init__(self, id="NATS")
@@ -477,15 +396,9 @@ class NatAlbum(Album):
         self.metadata["album"] = self.config.setting["nat_name"]
         for track in self.tracks:
             track.metadata["album"] = self.metadata["album"]
-            for file in track.linked_files:
-                track.update_file_metadata(file)
+            if track.linked_file:
+                track.update_file_metadata(track.linked_file)
         Album.update(self, update_tracks)
 
     def _finalize_loading(self, error):
         self.update()
-
-    def can_refresh(self):
-        return False
-
-    def can_browser_lookup(self):
-        return False

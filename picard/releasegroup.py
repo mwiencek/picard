@@ -29,7 +29,6 @@ class ReleaseGroup(DataObject):
 
     def __init__(self, id):
         DataObject.__init__(self, id)
-        self.metadata = Metadata()
         self.loaded = False
         self.versions = []
         self.loaded_albums = set()
@@ -37,7 +36,7 @@ class ReleaseGroup(DataObject):
 
     def load_versions(self, callback):
         kwargs = {"release-group": self.id, "limit": 100}
-        self.tagger.xmlws.browse_releases(partial(self._request_finished, callback), **kwargs)
+        QtCore.QObject.tagger.xmlws.browse_releases(partial(self._request_finished, callback), **kwargs)
 
     def _parse_versions(self, document):
         del self.versions[:]
@@ -67,7 +66,7 @@ class ReleaseGroup(DataObject):
     def _request_finished(self, callback, document, http, error):
         try:
             if error:
-                self.log.error("%r", unicode(http.errorString()))
+                QtCore.QObject.log.error("%r", unicode(http.errorString()))
             else:
                 try:
                     self._parse_versions(document)
@@ -82,4 +81,4 @@ class ReleaseGroup(DataObject):
         self.loaded_albums.discard(id)
         self.refcount -= 1
         if self.refcount == 0:
-            del self.tagger.release_groups[self.id]
+            del QtCore.QObject.tagger.release_groups[self.id]

@@ -64,25 +64,19 @@ void TreeItem::replaceChildren(QList<TreeItem *> *newChildren)
 
 void TreeItem::setExpanded(bool expanded)
 {
-    if (model) emit model->itemExpanded(index(), expanded);
+    if (model)
+        emit model->itemExpanded(model->indexOf(this), expanded);
 };
 
 void TreeItem::setHidden(bool hidden)
 {
-    if (model) emit model->itemHidden(index(), hidden);
+    if (model)
+        emit model->itemHidden(model->indexOf(this), hidden);
 };
 
 int TreeItem::childCound() const
 {
     return children->size();
-};
-
-QModelIndex TreeItem::index() const
-{
-    if (model)
-        return model->indexOf(const_cast<TreeItem *>(this));
-
-    return QModelIndex();
 };
 
 
@@ -222,16 +216,6 @@ void TreeModel::removeItem(TreeItem *item)
     item->model = NULL;
 
     endRemoveRows();
-};
-
-void TreeModel::removeItems(QList<TreeItem *> *items)
-{
-    int count;
-    if (!items || (count = items->size()) == 0)
-        return;
-
-    for (int i = 0; i < count; i++)
-        removeItem(items->at(i));
 };
 
 void TreeModel::clearChildren(TreeItem *parent)
