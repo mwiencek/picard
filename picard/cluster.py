@@ -18,6 +18,7 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
 
+import os
 import re
 from operator import itemgetter
 from heapq import heappush, heappop
@@ -151,10 +152,10 @@ class Cluster(ClusterItem):
         albumDict = ClusterDict()
         tracks = []
         for file in files:
-            album = file.metadata["album"]
+            artist = file.metadata["artist"]
+            album = file.metadata["album"] or os.path.basename(os.path.dirname(file.filename))
             # For each track, record the index of the artist and album within the clusters
-            tracks.append((artistDict.add(file.metadata["artist"]),
-                           albumDict.add(album)))
+            tracks.append((artistDict.add(artist), albumDict.add(album)))
 
         artist_cluster_engine = ClusterEngine(artistDict)
         artist_cluster = artist_cluster_engine.cluster(threshold)
