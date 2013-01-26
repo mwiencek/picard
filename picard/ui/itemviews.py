@@ -151,7 +151,8 @@ class MainPanel(QtGui.QSplitter):
 
     def remove(self, objects):
         for obj in objects:
-            obj.remove()
+            if obj.can_remove:
+                obj.remove()
         index = self._selected_view.currentIndex()
         if index.isValid():
             # select the current index
