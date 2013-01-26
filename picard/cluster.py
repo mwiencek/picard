@@ -92,6 +92,8 @@ class Cluster(ClusterItem):
         ClusterItem.update(self)
 
     def remove(self):
+        if self.state == Cluster.REMOVED:
+            return
         self.log.debug("Removing %r", self)
         self.state = Cluster.REMOVED
         self.clear_lookup_task()
