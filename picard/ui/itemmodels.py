@@ -139,7 +139,7 @@ class ClusterItem(TreeItem):
 
     def browser_lookup(self):
         metadata = self.metadata
-        self.get_file_lookup().tagLookup(
+        self.tagger.get_file_lookup().tagLookup(
                 metadata["albumartist"], metadata["album"], metadata["title"],
                 metadata["tracknumber"], "", "")
 
@@ -234,7 +234,7 @@ class TrackItem(TreeItem):
         return m[column]
 
     def browser_lookup(self):
-        trackid = metadata["musicbrainz_trackid"]
+        trackid = self.metadata["musicbrainz_trackid"]
         if trackid:
             self.tagger.get_file_lookup().trackLookup(trackid)
 
