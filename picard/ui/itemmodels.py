@@ -104,6 +104,19 @@ class BaseTreeModel(TreeModel):
         if new_files:
             self.tagger.add_files(new_files, target=target)
 
+    def sortComparator(self, column, order, a, b):
+        colname = self.columns[column][1]
+        s1 = a.column(colname) if column != 1 else a.metadata.length
+        s2 = b.column(colname) if column != 1 else b.metadata.length
+        return s1 < s2 if order == QtCore.Qt.AscendingOrder else s1 > s2
+
+
+class FileTreeModel(BaseTreeModel):
+
+    def sort(self, column, order):
+        self.tagger.unmatched_files.sortChildren(column, order)
+        self.tagger.clusters.sortChildren(column, order)
+
 
 class ClusterItem(TreeItem):
 

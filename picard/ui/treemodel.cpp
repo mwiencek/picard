@@ -21,6 +21,7 @@
 #include <QtCore/QList>
 #include <QtCore/QModelIndex>
 #include <QtCore/QVariant>
+#include <QtAlgorithms>
 #include "treemodel.h"
 
 
@@ -59,6 +60,18 @@ void TreeItem::replaceChildren(QList<TreeItem *> *newChildren)
     if (model) {
         model->clearChildren(this);
         model->appendItems(newChildren, this);
+    }
+};
+
+void TreeItem::sortChildren(int column, Qt::SortOrder order)
+{
+    if (children->size() == 0)
+        return;
+
+    if (model) {
+        emit model->layoutAboutToBeChanged();
+        qSort(children->begin(), children->end(), SortFunction(model, column, order));
+        emit model->layoutChanged();
     }
 };
 
@@ -156,6 +169,11 @@ Qt::ItemFlags TreeModel::flags(const QModelIndex &index) const
             Qt::ItemIsDropEnabled);
 };
 
+bool TreeModel::sortComparator(int column, Qt::SortOrder order, TreeItem *a, TreeItem *b) const
+{
+    return false;
+};
+
 void TreeModel::appendItems(QList<TreeItem *> *items, TreeItem *parent)
 {
     int count;
@@ -236,4 +254,9 @@ void TreeModel::clearChildren(TreeItem *parent)
 
     parent->children->clear();
     endRemoveRows();
+};
+
+void TreeModel::sort(int column, Qt::SortOrder order)
+{
+    root->sortChildren(column, order);
 };

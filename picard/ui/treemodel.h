@@ -56,6 +56,7 @@ class TreeItem
         void appendChildren(QList<TreeItem *> *items);
         void removeChild(TreeItem *item);
         void replaceChildren(QList<TreeItem *> *newChildren);
+        void sortChildren(int column, Qt::SortOrder order);
 
         void setExpanded(bool expanded);
         void setHidden(bool hidden);
@@ -101,20 +102,37 @@ class TreeModel : public QAbstractItemModel
         QModelIndex parent(const QModelIndex &index) const;
         Qt::ItemFlags flags(const QModelIndex &index) const;
 
+        virtual bool sortComparator(int column, Qt::SortOrder order, TreeItem *a, TreeItem *b) const;
         TreeItem *itemFromIndex(const QModelIndex &index) const;
-
         QModelIndex indexOf(TreeItem *item) const;
 
         void appendItems(QList<TreeItem *> *items, TreeItem *parent);
         void appendItem(TreeItem *item, TreeItem *parent);
         void removeItem(TreeItem *item);
         void clearChildren(TreeItem *parent);
+        virtual void sort(int column, Qt::SortOrder order);
 
         friend class TreeItem;
 
     signals:
         void itemExpanded(const QModelIndex &index, bool expanded);
         void itemHidden(const QModelIndex &index, bool hidden);
+};
+
+
+class SortFunction {
+    private:
+        const TreeModel *model;
+        const int column;
+        const Qt::SortOrder order;
+
+    public:
+        SortFunction(TreeModel *model, int column, Qt::SortOrder order)
+            : model(model), column(column), order(order) {};
+
+        bool operator()(TreeItem *a, TreeItem *b) {
+            return model->sortComparator(column, order, a, b);
+        };
 };
 
 #endif

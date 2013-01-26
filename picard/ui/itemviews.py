@@ -171,14 +171,14 @@ class BaseTreeView(QtGui.QTreeView):
 
     selection_changed = QtCore.pyqtSignal(QtGui.QTreeView)
 
-    def __init__(self, window, parent=None):
+    def __init__(self, model, window, parent=None):
         QtGui.QTreeView.__init__(self, parent)
 
-        self.model = BaseTreeModel()
-        self.setModel(self.model)
-        self.model.itemExpanded.connect(self.item_expanded)
-        self.model.itemHidden.connect(self.item_hidden)
-        self.model.dataChanged.connect(self.data_changed)
+        self.model = model
+        self.setModel(model)
+        model.itemExpanded.connect(self.item_expanded)
+        model.itemHidden.connect(self.item_hidden)
+        model.dataChanged.connect(self.data_changed)
 
         self.window = window
         self.panel = parent
@@ -194,8 +194,6 @@ class BaseTreeView(QtGui.QTreeView):
         self.setUniformRowHeights(True)
 
         # enable sorting, but don't actually use it by default
-        # XXX it would be nice to be able to go to the 'no sort' mode, but the
-        #     internal model that QTreeWidget uses doesn't support it
         self.header().setSortIndicator(-1, QtCore.Qt.AscendingOrder)
         self.setSortingEnabled(True)
 
@@ -406,7 +404,7 @@ class FileTreeView(BaseTreeView):
     view_sizes = TextOption("persist", "file_view_sizes", "250 40 100")
 
     def __init__(self, window, parent=None):
-        BaseTreeView.__init__(self, window, parent)
+        BaseTreeView.__init__(self, FileTreeModel(), window, parent)
         self.model.appendItem(self.tagger.unmatched_files, None)
         self.model.appendItem(self.tagger.clusters, None)
         self.tagger.unmatched_files.setExpanded(True)
@@ -418,7 +416,7 @@ class AlbumTreeView(BaseTreeView):
     view_sizes = TextOption("persist", "album_view_sizes", "250 40 100")
 
     def __init__(self, window, parent=None):
-        BaseTreeView.__init__(self, window, parent)
+        BaseTreeView.__init__(self, BaseTreeModel(), window, parent)
         self.tagger.album_added.connect(self.add_album)
         self.tagger.album_removed.connect(self.model.removeItem)
 

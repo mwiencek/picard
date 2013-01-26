@@ -99,6 +99,8 @@ class TreeItem
             if (a0_items) delete a0_items;
         %End
 
+        void sortChildren(int column, Qt::SortOrder order);
+
         void setExpanded(bool expanded);
         void setHidden(bool hidden);
 
@@ -131,8 +133,8 @@ class TreeModel : public QAbstractItemModel
         QModelIndex parent(const QModelIndex &index) const;
         Qt::ItemFlags flags(const QModelIndex &index) const;
 
+        virtual bool sortComparator(int column, Qt::SortOrder order, TreeItem *a, TreeItem *b) const;
         TreeItem *itemFromIndex(const QModelIndex &index) const;
-
         QModelIndex indexOf(TreeItem *item) const;
 
         void appendItems(SIP_PYLIST items, SIP_PYOBJECT parent);
@@ -164,6 +166,8 @@ class TreeModel : public QAbstractItemModel
             if (!sipIsErr)
                 sipCpp->removeItem(a0_item);
         %End
+
+        virtual void sort(int column, Qt::SortOrder order);
 
     signals:
         void itemExpanded(const QModelIndex &index, bool expanded);
