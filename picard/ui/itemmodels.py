@@ -199,6 +199,10 @@ class AlbumItem(TreeItem):
     def can_save(self):
         return self._files > 0
 
+    @property
+    def can_view_info(self):
+        return bool(self.loaded and self.metadata.images)
+
 
 class TrackItem(TreeItem):
 

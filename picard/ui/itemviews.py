@@ -244,7 +244,10 @@ class BaseTreeView(QtGui.QTreeView):
             menu.addAction(self.window.autotag_action)
             menu.addAction(self.window.analyze_action)
             plugin_actions = list(_file_actions)
+
         elif isinstance(item, Album):
+            if can_view_info:
+                menu.addAction(self.window.view_info_action)
             menu.addAction(self.window.browser_lookup_action)
             menu.addSeparator()
             menu.addAction(self.window.refresh_action)
@@ -263,20 +266,25 @@ class BaseTreeView(QtGui.QTreeView):
             loading.setEnabled(False)
             bottom_separator = True
 
-            def _add_other_versions():
-                releases_menu.removeAction(loading)
-                for version in item.release_group.versions:
-                    action = releases_menu.addAction(version["name"])
-                    action.setCheckable(True)
-                    if item.id == version["id"]:
-                        action.setChecked(True)
-                    action.triggered.connect(partial(item.switch_release_version, version["id"]))
+            if len(self.window.selected_objects) == 1:
+                def _add_other_versions():
+                    releases_menu.removeAction(loading)
+                    for version in item.release_group.versions:
+                        action = releases_menu.addAction(version["name"])
+                        action.setCheckable(True)
+                        if item.id == version["id"]:
+                            action.setChecked(True)
+                        action.triggered.connect(partial(item.switch_release_version, version["id"]))
 
-            _add_other_versions() if item.release_group.loaded else \
-                item.release_group.load_versions(_add_other_versions)
+                _add_other_versions() if item.release_group.loaded else \
+                    item.release_group.load_versions(_add_other_versions)
+                releases_menu.setEnabled(True)
+            else:
+                releases_menu.setEnabled(False)
 
-        if self.config.setting["enable_ratings"] and \
-           len(self.window.selected_objects) == 1 and isinstance(item, Track):
+        if (self.config.setting["enable_ratings"] and
+                len(self.window.selected_objects) == 1 and
+                isinstance(item, Track)):
             menu.addSeparator()
             action = QtGui.QWidgetAction(menu)
             action.setDefaultWidget(RatingWidget(menu, item))
@@ -379,7 +387,9 @@ class BaseTreeView(QtGui.QTreeView):
 
     def activate_item(self, index):
         item = self.model.itemFromIndex(index)
-        if item.can_view_info:
+        # Double-clicking albums should expand them. The album info can be
+        # viewed by using the toolbar button.
+        if not isinstance(item, Album) and item.can_view_info:
             self.window.view_info()
 
     def data_changed(self, topLeft, bottomRight):

@@ -117,8 +117,8 @@ class File(FileItem):
         self.orig_metadata.copy(metadata)
         self.metadata = metadata
 
-    _preserved_hidden_tags = [
-        "~bitrate", "~bits_per_sample", "format", "~channels", "~filename",
+    _default_preserved_tags = [
+        "~bitrate", "~bits_per_sample", "~format", "~channels", "~filename",
         "~dirname", "~extension"
     ]
 
@@ -127,7 +127,7 @@ class File(FileItem):
         preserve = self.config.setting["preserved_tags"].strip()
         saved_metadata = {}
 
-        for tag in re.split(r"\s+", preserve) + File._preserved_hidden_tags:
+        for tag in re.split(r"\s+", preserve) + File._default_preserved_tags:
             values = self.orig_metadata.getall(tag)
             if values:
                 saved_metadata[tag] = values
@@ -212,8 +212,8 @@ class File(FileItem):
             self.base_filename = os.path.basename(new_filename)
             length = self.orig_metadata.length
             temp_info = {}
-            for info in ('~#bitrate', '~#sample_rate', '~#channels',
-                         '~#bits_per_sample', '~format'):
+            for info in ('~bitrate', '~sample_rate', '~channels',
+                         '~bits_per_sample', '~format'):
                 temp_info[info] = self.orig_metadata[info]
             if self.config.setting["clear_existing_tags"]:
                 self.orig_metadata.copy(self.metadata)
@@ -245,13 +245,13 @@ class File(FileItem):
                 metadata[name] = sanitize_filename(metadata[name])
         format = format.replace("\t", "").replace("\n", "")
         filename = ScriptParser().eval(format, metadata, self)
-        # replace incompatible characters
-        if settings["windows_compatible_filenames"] or sys.platform == "win32":
-            filename = replace_win32_incompat(filename)
         if settings["ascii_filenames"]:
             if isinstance(filename, unicode):
                 filename = unaccent(filename)
             filename = replace_non_ascii(filename)
+        # replace incompatible characters
+        if settings["windows_compatible_filenames"] or sys.platform == "win32":
+            filename = replace_win32_incompat(filename)
         # remove null characters
         filename = filename.replace("\x00", "")
         return filename
@@ -503,7 +503,9 @@ class File(FileItem):
             self.tagger.move_file_to_nat(self, track.id, node=track)
 
     def lookup_metadata(self):
-        """ Try to identify the file using the existing metadata. """
+        """Try to identify the file using the existing metadata."""
+        if self.lookup_task:
+            return
         self.tagger.window.set_statusbar_message(N_("Looking up the metadata for file %s..."), self.filename)
         self.clear_lookup_task()
         self.set_pending()

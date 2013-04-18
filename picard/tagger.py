@@ -159,14 +159,14 @@ class Tagger(QtGui.QApplication):
 
         # Load plugins
         self.pluginmanager = PluginManager()
-        self.user_plugin_dir = os.path.join(self.userdir, "plugins")
-        if not os.path.exists(self.user_plugin_dir):
-            os.makedirs(self.user_plugin_dir)
-        self.pluginmanager.load_plugindir(self.user_plugin_dir)
         if hasattr(sys, "frozen"):
             self.pluginmanager.load_plugindir(os.path.join(os.path.dirname(sys.argv[0]), "plugins"))
         else:
             self.pluginmanager.load_plugindir(os.path.join(os.path.dirname(__file__), "plugins"))
+        self.user_plugin_dir = os.path.join(self.userdir, "plugins")
+        if not os.path.exists(self.user_plugin_dir):
+            os.makedirs(self.user_plugin_dir)
+        self.pluginmanager.load_plugindir(self.user_plugin_dir)
 
         self.acoustidmanager = AcoustIDManager()
         self.browser_integration = BrowserIntegration()
@@ -450,7 +450,7 @@ class Tagger(QtGui.QApplication):
 
     def autotag(self, objects):
         for obj in objects:
-            if isinstance(obj, (File, Cluster)) and not obj.lookup_task:
+            if obj.can_autotag:
                 obj.lookup_metadata()
 
     # =======================================================================

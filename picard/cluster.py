@@ -128,7 +128,9 @@ class Cluster(ClusterItem):
         self.tagger.load_album(match[1].id).match_files(self.files)
 
     def lookup_metadata(self):
-        """ Try to identify the cluster using the existing metadata. """
+        """Try to identify the cluster using the existing metadata."""
+        if self.lookup_task:
+            return
         self.tagger.window.set_statusbar_message(N_("Looking up the metadata for cluster %s..."), self.metadata['album'])
         self.state = TreeItem.PENDING
         ClusterItem.update(self)
@@ -273,6 +275,10 @@ class ClusterList(UserDict, TreeItem):
     @property
     def can_autotag(self):
         return len(self) > 0
+
+    def lookup_metadata(self):
+        for cluster in self:
+            cluster.lookup_metadata()
 
 
 class ClusterDict(object):
