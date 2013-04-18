@@ -177,8 +177,11 @@ class Tagger(QtGui.QApplication):
         self.release_groups = {}
         self.mbid_redirects = {}
         self.unmatched_files = UnmatchedFiles()
-        self.nats = None
         self.window = MainWindow()
+
+        self.nats = self.albums["NATS"] = NatAlbum()
+        self.window.panel.album_view.add_album(self.nats)
+        self.nats.set_hidden(True)
 
         def remove_va_file_naming_format(merge=True):
             if merge:
@@ -246,16 +249,8 @@ class Tagger(QtGui.QApplication):
                 else: return b
         __builtin__.__dict__['ungettext'] = ungettext
 
-    def create_nats(self):
-        if self.nats is None:
-            self.nats = NatAlbum()
-            self.albums["NATS"] = self.nats
-            self.album_added.emit(self.nats)
-        return self.nats
-
     def move_file_to_nat(self, file, trackid, node=None):
-        self.create_nats()
-        file.move(self.nats.unmatched_files)
+        file.set_pending()
         nat = self.load_nat(trackid, node=node)
         nat.run_when_loaded(partial(file.move, nat))
         if nat.loaded:
@@ -395,13 +390,11 @@ class Tagger(QtGui.QApplication):
         return album
 
     def load_nat(self, id, node=None):
-        self.create_nats()
         nat = self.get_nat_by_id(id)
         if nat:
             return nat
         nat = NonAlbumTrack(id)
-        self.nats.tracks.append(nat)
-        self.nats.update(True)
+        self.nats.add_nat(nat)
         if node:
             nat._parse_recording(node)
         else:

@@ -75,18 +75,6 @@ void TreeItem::sortChildren(int column, Qt::SortOrder order)
     }
 };
 
-void TreeItem::setExpanded(bool expanded)
-{
-    if (model)
-        emit model->itemExpanded(model->indexOf(this), expanded);
-};
-
-void TreeItem::setHidden(bool hidden)
-{
-    if (model)
-        emit model->itemHidden(model->indexOf(this), hidden);
-};
-
 int TreeItem::childCound() const
 {
     return children->size();
@@ -137,7 +125,7 @@ QModelIndex TreeModel::index(int row, int column, const QModelIndex &parent) con
     if (!par)
         par = root;
 
-    if (row >= par->children->size())
+    if (row < 0 || row >= par->children->size())
         return QModelIndex();
 
     return createIndex(row, column, par->children->at(row));

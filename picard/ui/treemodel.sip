@@ -101,9 +101,6 @@ class TreeItem
 
         void sortChildren(int column, Qt::SortOrder order);
 
-        void setExpanded(bool expanded);
-        void setHidden(bool hidden);
-
         int childCound() const;
         TreeItem *parentItem() const;
 
@@ -115,6 +112,12 @@ class TreeItem
         static const bool can_refresh;
         static const bool can_view_info;
         static const bool can_browser_lookup;
+
+        static const char PENDING;
+        static const char NORMAL;
+        static const char CHANGED;
+        static const char ERROR;
+        static const char REMOVED;
 };
 
 
@@ -168,8 +171,4 @@ class TreeModel : public QAbstractItemModel
         %End
 
         virtual void sort(int column, Qt::SortOrder order);
-
-    signals:
-        void itemExpanded(const QModelIndex &index, bool expanded);
-        void itemHidden(const QModelIndex &index, bool hidden);
 };

@@ -50,12 +50,6 @@ from picard.util import (
 
 class File(FileItem):
 
-    PENDING = 0
-    NORMAL = 1
-    CHANGED = 2
-    ERROR = 3
-    REMOVED = 4
-
     comparison_weights = {
         "title": 13,
         "artist": 4,

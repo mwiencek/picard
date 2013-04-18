@@ -153,12 +153,7 @@ class MainPanel(QtGui.QSplitter):
         for obj in objects:
             if obj.can_remove:
                 obj.remove()
-        index = self._selected_view.currentIndex()
-        if index.isValid():
-            # select the current index
-            self._selected_view.setCurrentIndex(index)
-        else:
-            self.update_selection(self._selected_view)
+        self._selected_view.update_current_index()
 
 
 class BaseTreeView(QtGui.QTreeView):
@@ -177,8 +172,6 @@ class BaseTreeView(QtGui.QTreeView):
 
         self.model = model
         self.setModel(model)
-        model.itemExpanded.connect(self.item_expanded)
-        model.itemHidden.connect(self.item_hidden)
         model.dataChanged.connect(self.data_changed)
 
         self.window = window
@@ -360,7 +353,7 @@ class BaseTreeView(QtGui.QTreeView):
         files = []
         url = QtCore.QUrl.fromLocalFile
         for item in items:
-            if isinstance(item, Album):
+            if isinstance(item, (Album, NatAlbum)):
                 album_ids.append(str(item.id))
             elif isinstance(item, Track):
                 if item.linked_file:
@@ -389,15 +382,20 @@ class BaseTreeView(QtGui.QTreeView):
         if item.can_view_info:
             self.window.view_info()
 
-    def item_expanded(self, index, expanded):
-        self.setExpanded(index, expanded)
-
-    def item_hidden(self, index, hidden):
-        self.setHidden(index, hidden)
-
     def data_changed(self, topLeft, bottomRight):
         if self.selectionModel().selection().contains(topLeft):
             self.window.update_selection()
+
+    def update_current_index(self):
+        index = self.currentIndex()
+        hidden = self.isRowHidden(index.row(), index.parent())
+        if hidden:
+            self.selectionModel().select(index, QtGui.QItemSelectionModel.Deselect)
+        elif index.isValid():
+            # select the current index
+            self.setCurrentIndex(index)
+        else:
+            self.panel.update_selection(self)
 
 
 class FileTreeView(BaseTreeView):
@@ -408,8 +406,8 @@ class FileTreeView(BaseTreeView):
         BaseTreeView.__init__(self, FileTreeModel(), window, parent)
         self.model.appendItem(self.tagger.unmatched_files, None)
         self.model.appendItem(self.tagger.clusters, None)
-        self.tagger.unmatched_files.setExpanded(True)
-        self.tagger.clusters.setExpanded(True)
+        self.setExpanded(self.model.indexOf(self.tagger.unmatched_files), True)
+        self.setExpanded(self.model.indexOf(self.tagger.clusters), True)
 
 
 class AlbumTreeView(BaseTreeView):

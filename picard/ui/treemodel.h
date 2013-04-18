@@ -43,10 +43,13 @@ class TreeItem
 
         QList<TreeItem *> *children;
 
+        bool hidden;
+
     public:
         TreeItem() : parent(NULL),
                      model(NULL),
-                     children(new QList<TreeItem *>()) {}
+                     children(new QList<TreeItem *>()),
+                     hidden(false) {}
 
         ~TreeItem() { delete children; }
 
@@ -57,9 +60,6 @@ class TreeItem
         void removeChild(TreeItem *item);
         void replaceChildren(QList<TreeItem *> *newChildren);
         void sortChildren(int column, Qt::SortOrder order);
-
-        void setExpanded(bool expanded);
-        void setHidden(bool hidden);
 
         int childCound() const;
         TreeItem *parentItem() const { return parent; }
@@ -78,6 +78,12 @@ class TreeItem
         static const bool can_refresh = false;
         static const bool can_view_info = false;
         static const bool can_browser_lookup = true;
+
+        static const char PENDING = 0;
+        static const char NORMAL = 1;
+        static const char CHANGED = 2;
+        static const char ERROR = 3;
+        static const char REMOVED = 4;
 
         friend class TreeModel;
 };
@@ -113,10 +119,6 @@ class TreeModel : public QAbstractItemModel
         virtual void sort(int column, Qt::SortOrder order);
 
         friend class TreeItem;
-
-    signals:
-        void itemExpanded(const QModelIndex &index, bool expanded);
-        void itemHidden(const QModelIndex &index, bool hidden);
 };
 
 

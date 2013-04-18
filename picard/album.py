@@ -62,7 +62,7 @@ class Album(AlbumItem, DataObject):
         self._pending_files = []
 
     def __repr__(self):
-        return '<Album %s %r>' % (self.id, self.metadata[u"album"])
+        return "<Album %s %r>" % (self.id, self.metadata["album"])
 
     def iterfiles(self):
         for track in self.tracks:
@@ -342,13 +342,13 @@ class Album(AlbumItem, DataObject):
                     matches.append((2.0, track))
         return matches
 
-    def get_num_matched_tracks(self):
-        return sum(1 for t in self.tracks if t.is_linked())
-
     def is_complete(self):
         if not self.tracks:
             return False
         return all(t.linked_file is not None for t in self.tracks)
+
+    def get_num_matched_tracks(self):
+        return sum(1 for t in self.tracks if t.is_linked())
 
     def get_num_unsaved_files(self):
         return sum(1 for t in self.tracks if t.linked_file and not t.linked_file.is_saved())
@@ -376,8 +376,6 @@ class Album(AlbumItem, DataObject):
             file.remove()
         if self.release_group:
             self.release_group.remove_album(self.id)
-        if self == self.tagger.nats:
-            self.tagger.nats = None
         del self.tagger.albums[self.id]
         self.tagger.album_removed.emit(self)
 
@@ -392,13 +390,28 @@ class NatAlbum(Album):
         self.loaded = True
         self.update()
 
-    def update(self, update_tracks=True):
-        self.metadata["album"] = self.config.setting["nat_name"]
+    def add_nat(self, nat):
+        self.tracks.append(nat)
+        self.appendChild(nat)
+        self.update()
+
+    def set_hidden(self, hidden):
+        view = self.panel.album_view
+        index = view.model.indexOf(self)
+        view.setRowHidden(index.row(), index.parent(), hidden)
+
+    def update(self):
+        name = self.config.setting["nat_name"]
+        self.metadata["album"] = name
         for track in self.tracks:
-            track.metadata["album"] = self.metadata["album"]
+            track.metadata["album"] = name
             if track.linked_file:
                 track.update_file_metadata(track.linked_file)
-        Album.update(self, update_tracks)
+        self.set_hidden(not self.tracks)
+        AlbumItem.update(self, update_tracks=False)
 
-    def _finalize_loading(self, error):
-        self.update()
+    def remove(self):
+        for track in self.tracks:
+            track.remove()
+        self.tracks = []
+        self.set_hidden(True)

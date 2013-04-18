@@ -33,10 +33,6 @@ from picard.mbxml import artist_credit_from_node
 
 class Cluster(ClusterItem):
 
-    PENDING = 0
-    NORMAL = 1
-    REMOVED = 2
-
     # Weights for different elements when comparing a cluster to a release
     comparison_weights = {
         'album': 17,
@@ -55,7 +51,7 @@ class Cluster(ClusterItem):
         self.key = (name, artist)
         self.files = []
         self.lookup_task = None
-        self.state = Cluster.NORMAL
+        self.state = TreeItem.NORMAL
 
     def __repr__(self):
         return '<Cluster %r>' % self.metadata['album']
@@ -92,10 +88,10 @@ class Cluster(ClusterItem):
         ClusterItem.update(self)
 
     def remove(self):
-        if self.state == Cluster.REMOVED:
+        if self.state == TreeItem.REMOVED:
             return
         self.log.debug("Removing %r", self)
-        self.state = Cluster.REMOVED
+        self.state = TreeItem.REMOVED
         self.clear_lookup_task()
         for file in self.files:
             file.remove(from_parent=False)
@@ -103,11 +99,11 @@ class Cluster(ClusterItem):
         self.tagger.clusters.removeChild(self)
 
     def _lookup_finished(self, document, http, error):
-        if self.state == Cluster.REMOVED:
+        if self.state == TreeItem.REMOVED:
             return
 
         self.lookup_task = None
-        self.state = Cluster.NORMAL
+        self.state = TreeItem.NORMAL
         ClusterItem.update(self)
 
         try:
@@ -134,7 +130,7 @@ class Cluster(ClusterItem):
     def lookup_metadata(self):
         """ Try to identify the cluster using the existing metadata. """
         self.tagger.window.set_statusbar_message(N_("Looking up the metadata for cluster %s..."), self.metadata['album'])
-        self.state = Cluster.PENDING
+        self.state = TreeItem.PENDING
         ClusterItem.update(self)
         self.lookup_task = self.tagger.xmlws.find_releases(
                 self._lookup_finished,

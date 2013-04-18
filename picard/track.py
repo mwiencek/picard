@@ -132,7 +132,8 @@ class NonAlbumTrack(Track):
     can_refresh = True
 
     def __init__(self, id):
-        Track.__init__(self, id)
+        Track.__init__(self, id, None)
+        self.album = self.tagger.nats
         self.callback = None
         self.loaded = False
 
@@ -143,9 +144,9 @@ class NonAlbumTrack(Track):
 
     def load(self):
         self.metadata.copy(self.album.metadata)
-        self.metadata["title"] = u"[loading track information]"
+        self.metadata["title"] = _(u"[loading track information]")
         self.loaded = False
-        self.tagger.nats.update(True)
+        self.album.update()
         mblogin = False
         inc = ["artist-credits", "artists", "aliases"]
         if self.config.setting["track_ars"]:
@@ -193,7 +194,7 @@ class NonAlbumTrack(Track):
         if self.callback:
             self.callback()
             self.callback = None
-        self.tagger.nats.update(True)
+        self.album.update()
 
     def run_when_loaded(self, func):
         if self.loaded:
