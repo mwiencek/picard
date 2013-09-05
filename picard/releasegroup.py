@@ -40,13 +40,57 @@ class ReleaseGroup(DataObject):
         kwargs = {"release-group": self.id, "limit": 100}
         self.tagger.xmlws.browse_releases(partial(self._request_finished, callback), **kwargs)
 
+    def _version_names_dupes(self, versions):
+        """Find releases with conflicting names"""
+        dupes = dict()
+        length = len(versions)
+        for i in range(0, length):
+            for j in range(i + 1, length):
+                name = versions[i]['name']
+                if name == versions[j]['name']:
+                    if versions[i]['extras'] != versions[j]['extras']:
+                        if name not in dupes:
+                            dupes[name] = []
+                        dupes[name].append((i, j))
+        return dupes
+
+    def _versions_disambiguation(self, versions):
+        """Find elements in extra information that may help to disambiguate"""
+
+        def _append_diff(diff, index, s):
+            if index not in diff:
+                diff[index] = []
+            if s not in diff[index]:
+                diff[index].append(s)
+
+        disambiguates = dict()
+        for name, dupes in self._version_names_dupes(versions).iteritems():
+            diff = dict()
+            for a_index, b_index in dupes:
+                a = versions[a_index]['extras']
+                b = versions[b_index]['extras']
+                for e in a:
+                    if e not in b:
+                        _append_diff(diff, a_index, a[e])
+                    else:
+                        if a[e] != b[e]:
+                            _append_diff(diff, a_index, a[e])
+                            _append_diff(diff, b_index, b[e])
+            disambiguates[name] = diff
+        disambiguation_list = dict()
+        for name in disambiguates:
+            for i in disambiguates[name]:
+                disambiguation_list[i] = disambiguates[name][i]
+        return disambiguation_list
+
     def _parse_versions(self, document):
+        """Parse document and return a list of releases"""
         del self.versions[:]
         data = []
 
         for node in document.metadata[0].release_list[0].release:
             labels, catnums = label_info_from_node(node.label_info_list[0])
-            data.append({
+            release = {
                 "id":      node.id,
                 "date":    node.date[0].text if "date" in node.children else "",
                 "country": node.country[0].text if "country" in node.children else "",
@@ -54,16 +98,44 @@ class ReleaseGroup(DataObject):
                 "labels":  ", ".join(set(labels)),
                 "catnums": ", ".join(set(catnums)),
                 "tracks":  " + ".join([m.track_list[0].count for m in node.medium_list[0].medium]),
-            })
+            }
+            if "barcode" in node.children:
+                barcode = node.barcode[0].text
+                if barcode == "":
+                    barcode = "[none]"
+                release['barcode'] = barcode
+            if "packaging" in node.children:
+                release['packaging'] = node.packaging[0].text
+            if "disambiguation" in node.children:
+                release['disambiguation'] = node.disambiguation[0].text
+            data.append(release)
         data.sort(key=lambda x: x["date"])
         keys = ("date", "country", "labels", "catnums", "tracks", "format")
+        extrakeys = ("packaging", "barcode", "disambiguation")
 
         for version in data:
             name = " / ".join(filter(None, (version[k] for k in keys))).replace("&", "&&")
+            extras = dict()
             if name == version["tracks"]:
                 name = "%s / %s" % (_('[no release info]'), name)
+            else:
+                for k in extrakeys:
+                    if k in version:
+                        extras[k] = version[k]
+            self.versions.append({"id": version["id"], "name": name, "extras": extras})
 
-            self.versions.append({"id": version["id"], "name": name})
+    def _versions_list(self):
+        """Add disambiguation information to releases list names"""
+        disambiguation_list = self._versions_disambiguation(self.versions)
+        for i, version in enumerate(self.versions):
+            if i in disambiguation_list:
+                version['name'] += " / " + " / ".join(disambiguation_list[i]).replace("&", "&&")
+            del version['extras']
+
+    def _other_versions(self, document):
+        """Returns a list of disambiguated releases for the user to choose from"""
+        self._parse_versions(document)
+        self._versions_list()
 
     def _request_finished(self, callback, document, http, error):
         try:
@@ -71,7 +143,7 @@ class ReleaseGroup(DataObject):
                 log.error("%r", unicode(http.errorString()))
             else:
                 try:
-                    self._parse_versions(document)
+                    self._other_versions(document)
                 except:
                     error = True
                     log.error(traceback.format_exc())
