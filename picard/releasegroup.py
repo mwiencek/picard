@@ -18,6 +18,7 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
 
 import traceback
+from collections import defaultdict
 from functools import partial
 from PyQt4 import QtCore
 from picard import config, log
@@ -42,15 +43,13 @@ class ReleaseGroup(DataObject):
 
     def _version_names_dupes(self, versions):
         """Find releases with conflicting names"""
-        dupes = dict()
+        dupes = defaultdict(list)
         length = len(versions)
         for i in range(0, length):
             for j in range(i + 1, length):
                 name = versions[i]['name']
                 if name == versions[j]['name']:
                     if versions[i]['extras'] != versions[j]['extras']:
-                        if name not in dupes:
-                            dupes[name] = []
                         dupes[name].append((i, j))
         return dupes
 
@@ -58,14 +57,12 @@ class ReleaseGroup(DataObject):
         """Find elements in extra information that may help to disambiguate"""
 
         def _append_diff(diff, index, s):
-            if index not in diff:
-                diff[index] = []
             if s not in diff[index]:
                 diff[index].append(s)
 
         disambiguates = dict()
         for name, dupes in self._version_names_dupes(versions).iteritems():
-            diff = dict()
+            diff = defaultdict(list)
             for a_index, b_index in dupes:
                 a = versions[a_index]['extras']
                 b = versions[b_index]['extras']
