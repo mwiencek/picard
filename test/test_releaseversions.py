@@ -131,7 +131,7 @@ class ReleaseTest(unittest.TestCase):
             })]
         })
         r = ReleaseGroup(1)
-        r._other_versions(rlist)
+        r._parse_versions(rlist)
         self.assertEqual(r.versions[0]['name'],
                          '2009-08-07 / GB / label A / cat 123 / 5 / CD / Jewel Case / special')
         self.assertEqual(r.versions[1]['name'],
@@ -201,7 +201,7 @@ class ReleaseTest(unittest.TestCase):
             })]
         })
         r = ReleaseGroup(1)
-        r._other_versions(rlist)
+        r._parse_versions(rlist)
         self.assertEqual(r.versions[0]['name'],
                          '2011-08-07 / FR / label A / cat 123 / 5 / CD / special A')
         self.assertEqual(r.versions[1]['name'],
@@ -274,8 +274,8 @@ class ReleaseTest(unittest.TestCase):
             })]
         })
         r = ReleaseGroup(1)
-        r._other_versions(rlist)
+        r._parse_versions(rlist)
         self.assertEqual(r.versions[0]['name'],
                          '2009-08-07 / FR / label A / cat 123 / 5 / CD / 012345678929')
         self.assertEqual(r.versions[1]['name'],
-                         '2009-08-07 / FR / label A / cat 123 / 5 / CD / [none]')
+                         '2009-08-07 / FR / label A / cat 123 / 5 / CD / [no barcode]')
