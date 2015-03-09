@@ -40,6 +40,7 @@ from picard.mbxml import (
     release_to_metadata,
     medium_to_metadata,
     track_to_metadata,
+    transl_source_release_nodes
 )
 from picard.const import VARIOUS_ARTISTS_ID
 
@@ -96,18 +97,53 @@ class Album(DataObject, Item):
                 self.tagger.albums[release_node.id] = self
                 self.id = release_node.id
 
-        # Get release metadata
-        m = self._new_metadata
-        m.length = 0
-
         rg_node = release_node.release_group[0]
         rg = self.release_group = self.tagger.get_release_group_by_id(rg_node.id)
         rg.loaded_albums.add(self.id)
         rg.refcount += 1
-
         release_group_to_metadata(rg_node, rg.metadata, rg)
+
+        # If this is a pseudo-release, try to move everything to a linked
+        # source release, setting this one as musicbrainz_translreleaseid.
+        source_release = None
+
+        # If there are multiple transl-tracklisting relationships, the source
+        # release we pick is completely arbitrary. Prefer albums that are
+        # already loaded.
+        for source in transl_source_release_nodes(release_node):
+            if source.id in self.tagger.albums:
+                source_release = source
+                break
+            elif not source_release:
+                source_release = source
+
+        if source_release:
+            source_album = self.tagger.albums.get(source_release.id)
+            transl_release_id = self.id
+
+            if source_album:
+                if source_album.metadata['musicbrainz_translreleaseid'] == transl_release_id:
+                    self.move_files_to_album_and_remove(source_album)
+                    return False
+            else:
+                source_album = self
+
+            source_album.switch_release_version(
+                source_release.id,
+                load_kwargs={'force': True,
+                             'transl_release_id': transl_release_id,
+                             'transl_release_node': release_node}
+            )
+            return False
+
+        # Get release metadata
+        m = self._new_metadata
+        m.length = 0
         m.copy(rg.metadata)
         release_to_metadata(release_node, m, album=self)
+
+        if hasattr(document, '_transl_release_id'):
+            m['musicbrainz_translreleaseid'] = document._transl_release_id
 
         if self._discid:
             m['musicbrainz_discid'] = self._discid
@@ -306,8 +342,9 @@ class Album(DataObject, Item):
 
         return track
 
-    def load(self, priority=False, refresh=False):
-        if self._requests:
+    def load(self, priority=False, refresh=False, force=False,
+             transl_release_id=None, transl_release_node=None):
+        if self._requests and not force:
             log.info("Not reloading, some requests are still active.")
             return
         self.tagger.window.set_statusbar_message(
@@ -324,13 +361,13 @@ class Album(DataObject, Item):
         self.update()
         self._new_metadata = Metadata()
         self._new_tracks = []
-        self._requests = 1
+        self._requests += 1
         self.errors = []
         require_authentication = False
         inc = ['release-groups', 'media', 'recordings', 'artist-credits',
-               'artists', 'aliases', 'labels', 'isrcs', 'collections']
+               'artists', 'aliases', 'labels', 'isrcs', 'collections', 'release-rels']
         if config.setting['release_ars'] or config.setting['track_ars']:
-            inc += ['artist-rels', 'release-rels', 'url-rels', 'recording-rels', 'work-rels']
+            inc += ['artist-rels', 'url-rels', 'recording-rels', 'work-rels']
             if config.setting['track_ars']:
                 inc += ['recording-level-rels', 'work-level-rels']
         if config.setting['folksonomy_tags']:
@@ -342,8 +379,43 @@ class Album(DataObject, Item):
         if config.setting['enable_ratings']:
             require_authentication = True
             inc += ['user-ratings']
+
+        # This would be much easier with promises of some sort ;_;
+        release_request_finished = self._release_request_finished
+
+        if transl_release_id:
+            previous_release_request_finished = release_request_finished
+
+            def release_request_finished(release_document, http, error):
+                release_document._transl_release_id = transl_release_id
+
+                def copy_transl_and_finish(transl_release_node, document, http, error):
+                    if not error:
+                        release_node = document.metadata[0].release[0]
+                        release_node.title = transl_release_node.title
+                        release_node.artist_credit = transl_release_node.artist_credit
+                        release_node.medium_list = transl_release_node.medium_list
+                    previous_release_request_finished(document, http, error)
+
+                if transl_release_node:
+                    copy_transl_and_finish(transl_release_node, release_document, http, error)
+                else:
+                    def transl_release_request_finished(document, http, error):
+                        if not error:
+                            transl_release_node = document.metadata[0].release[0]
+                        copy_transl_and_finish(transl_release_node, release_document, http, error)
+
+                    self.tagger.xmlws.get_release_by_id(
+                        transl_release_id,
+                        transl_release_request_finished,
+                        inc=('media', 'recordings', 'artists', 'artist-credits', 'release-rels'),
+                        mblogin=False,
+                        priority=True,
+                        refresh=False
+                    )
+
         self.load_task = self.tagger.xmlws.get_release_by_id(
-            self.id, self._release_request_finished, inc=inc,
+            self.id, release_request_finished, inc=inc,
             mblogin=require_authentication, priority=priority, refresh=refresh)
 
     def run_when_loaded(self, func):
@@ -515,22 +587,30 @@ class Album(DataObject, Item):
         else:
             return ''
 
-    def switch_release_version(self, mbid):
-        if mbid == self.id:
-            return
-        for file in list(self.iterfiles(True)):
-            file.move(self.unmatched_files)
-        album = self.tagger.albums.get(mbid)
-        if album:
-            album.match_files(self.unmatched_files.files)
-            album.update()
-            self.tagger.remove_album(self)
-        else:
+    def move_files_to_album_and_remove(self, album):
+        album.match_files(self.iterfiles())
+        album.update()
+        self.tagger.remove_album(self)
+
+    def force_switch_release_version(self, mbid, load_kwargs={}):
+        if mbid != self.id:
             del self.tagger.albums[self.id]
             self.release_group.loaded_albums.discard(self.id)
             self.id = mbid
             self.tagger.albums[mbid] = self
-            self.load(priority=True, refresh=True)
+
+        for file in self.iterfiles(True):
+            file.move(self.unmatched_files)
+
+        self.load(priority=True, refresh=True, **load_kwargs)
+
+    def switch_release_version(self, mbid, load_kwargs={}):
+        if mbid != self.id:
+            album = self.tagger.albums.get(mbid)
+            if album:
+                self.move_files_to_album_and_remove(self.unmatched_files, album)
+            else:
+                self.force_switch_release_version(mbid, load_kwargs=load_kwargs)
 
 
 class NatAlbum(Album):

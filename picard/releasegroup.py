@@ -24,7 +24,11 @@ from itertools import combinations
 from picard import config, log
 from picard.metadata import Metadata
 from picard.dataobj import DataObject
-from picard.mbxml import media_formats_from_node, label_info_from_node
+from picard.mbxml import (
+    label_info_from_node,
+    media_formats_from_node,
+    transl_source_release_nodes
+)
 from picard.util import uniqify
 
 
@@ -35,17 +39,18 @@ class ReleaseGroup(DataObject):
         self.metadata = Metadata()
         self.loaded = False
         self.versions = []
+        self.transl_versions = defaultdict(lambda: [])
         self.version_headings = ''
         self.loaded_albums = set()
         self.refcount = 0
 
     def load_versions(self, callback):
-        kwargs = {"release-group": self.id, "limit": 100}
+        kwargs = {"release-group": self.id, "inc": ("media", "labels", "release-rels"), "limit": 100}
         self.tagger.xmlws.browse_releases(partial(self._request_finished, callback), **kwargs)
 
     def _parse_versions(self, document):
-        """Parse document and return a list of releases"""
         del self.versions[:]
+        self.transl_versions.clear()
         data = []
 
         namekeys = ("tracks", "year", "country", "format", "label", "catnum")
@@ -58,7 +63,30 @@ class ReleaseGroup(DataObject):
             "catnum":   N_('Cat No'),
         }
         extrakeys = ("packaging", "barcode", "disambiguation")
+
         for node in document.metadata[0].release_list[0].release:
+            transl_sources = list(transl_source_release_nodes(node))
+
+            if transl_sources:
+                tr = node.text_representation[0] if 'text_representation' in node.children else None
+
+                transl_info = {
+                    'id': node.id,
+                    'language': tr.language[0].text if tr and 'language' in tr.children else None,
+                    'script': tr.script[0].text if tr and 'script' in tr.children else None
+                }
+
+                for source in transl_sources:
+                    self.transl_versions[source.id].append(transl_info)
+
+            # Leave pseudo-releases out of the other-versions menu; their
+            # artist and title info can be grabbed via the "Languages/scripts"
+            # menu, but they otherwise shouldn't contain useful data like cover
+            # artwork or relationships:
+            # http://musicbrainz.org/doc/Style/Specific_types_of_releases/Pseudo-Releases
+            if 'status' in node.children and node.status[0].text == 'Pseudo-Release':
+                continue
+
             labels, catnums = label_info_from_node(node.label_info_list[0])
 
             countries = []

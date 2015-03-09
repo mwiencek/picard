@@ -21,7 +21,7 @@ import re
 from picard import config
 from picard.util import (format_time, translate_from_sortname, parse_amazon_url,
                          linear_combination_of_weights)
-from picard.const import RELEASE_FORMATS
+from picard.const import RELEASE_FORMATS, TRANSL_TRACKLISTING_ID
 
 
 _artist_rel_types = {
@@ -235,6 +235,21 @@ def media_formats_from_node(node):
             format = str(count) + u"×" + format
         formats.append(format)
     return " + ".join(formats)
+
+
+def relation_list_has_releases(node):
+    return node.target_type == 'release'
+
+
+def transl_source_release_nodes(node):
+    if 'relation_list' in node.children:
+        relation_list = filter(relation_list_has_releases, node.relation_list)
+        if relation_list:
+            for relation in relation_list[0].relation:
+                if (relation.type_id == TRANSL_TRACKLISTING_ID and
+                        'direction' in relation.children and
+                        relation.direction[0].text == 'backward'):
+                    yield relation.release[0]
 
 
 def track_to_metadata(node, track):

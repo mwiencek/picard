@@ -22,6 +22,7 @@ import re
 from functools import partial
 from PyQt4 import QtCore, QtGui
 from picard import config, log
+from picard.const import MB_LANGUAGES, MB_SCRIPTS
 from picard.album import Album, NatAlbum
 from picard.cluster import Cluster, ClusterList, UnmatchedFiles
 from picard.file import File
@@ -298,8 +299,11 @@ class BaseTreeView(QtGui.QTreeWidget):
 
         if isinstance(obj, Album) and not isinstance(obj, NatAlbum) and obj.loaded:
             releases_menu = QtGui.QMenu(_("&Other versions"), menu)
+            transl_menu = QtGui.QMenu(_("&Languages/scripts"))
+            transl_menu.setDisabled(True)
             menu.addSeparator()
             menu.addMenu(releases_menu)
+            menu.addMenu(transl_menu)
             loading = releases_menu.addAction(_('Loading...'))
             loading.setDisabled(True)
             bottom_separator = True
@@ -342,6 +346,26 @@ class BaseTreeView(QtGui.QTreeWidget):
                         if obj.id == version["id"]:
                             action.setChecked(True)
                         action.triggered.connect(partial(obj.switch_release_version, version["id"]))
+
+                    def switch_transl_callback(album, transl_release_id):
+                        def triggered(enabled):
+                            if enabled:
+                                album.force_switch_release_version(album.id, load_kwargs={'transl_release_id': transl_release_id})
+                            else:
+                                album.load(priority=True, refresh=True)
+                        return triggered
+
+                    transl_versions = obj.release_group.transl_versions[obj.id]
+                    if transl_versions:
+                        for version in transl_versions:
+                            language_name = _(MB_LANGUAGES.get(version['language'], '[unknown language]'))
+                            script_name = _(MB_SCRIPTS.get(version['script'], '[unknown script]'))
+                            action = transl_menu.addAction('%s / %s' % (language_name, script_name))
+                            action.setCheckable(True)
+                            if obj.metadata['musicbrainz_translreleaseid'] == version['id']:
+                                action.setChecked(True)
+                            action.triggered.connect(switch_transl_callback(obj, version['id']))
+                        transl_menu.setDisabled(False)
 
                 if obj.release_group.loaded:
                     _add_other_versions()

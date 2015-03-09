@@ -433,16 +433,16 @@ class XmlWebService(QtCore.QObject):
     def find_tracks(self, handler, **kwargs):
         return self._find('recording', handler, kwargs)
 
-    def _browse(self, entitytype, handler, kwargs, inc=[], priority=False, important=False):
+    def _browse(self, entitytype, handler, kwargs, priority=False, important=False):
         host = config.setting["server_host"]
         port = config.setting["server_port"]
+        inc = '+'.join(kwargs.pop('inc'))
         params = "&".join(["%s=%s" % (k, v) for k, v in kwargs.items()])
-        path = "/ws/2/%s?%s&inc=%s" % (entitytype, params, "+".join(inc))
+        path = "/ws/2/%s?%s&inc=%s" % (entitytype, params, inc)
         return self.get(host, port, path, handler, priority=priority, important=important)
 
     def browse_releases(self, handler, priority=True, important=True, **kwargs):
-        inc = ["media", "labels"]
-        return self._browse("release", handler, kwargs, inc, priority=priority, important=important)
+        return self._browse("release", handler, kwargs, priority=priority, important=important)
 
     def submit_ratings(self, ratings, handler):
         host = config.setting['server_host']

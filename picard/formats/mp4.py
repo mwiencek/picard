@@ -69,6 +69,7 @@ class MP4File(File):
         "----:com.apple.iTunes:MusicBrainz Track Id": "musicbrainz_recordingid",
         "----:com.apple.iTunes:MusicBrainz Artist Id": "musicbrainz_artistid",
         "----:com.apple.iTunes:MusicBrainz Album Id": "musicbrainz_albumid",
+        "----:com.apple.iTunes:MusicBrainz Translated or Transliterated Release Id": "musicbrainz_translreleaseid",
         "----:com.apple.iTunes:MusicBrainz Album Artist Id": "musicbrainz_albumartistid",
         "----:com.apple.iTunes:MusicIP PUID": "musicip_puid",
         "----:com.apple.iTunes:MusicBrainz Album Status": "releasestatus",

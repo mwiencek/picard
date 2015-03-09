@@ -155,6 +155,7 @@ class ID3File(File):
     __translate_freetext = {
         'MusicBrainz Artist Id': 'musicbrainz_artistid',
         'MusicBrainz Album Id': 'musicbrainz_albumid',
+        'MusicBrainz Translated or Transliterated Release Id': 'musicbrainz_translreleaseid',
         'MusicBrainz Album Artist Id': 'musicbrainz_albumartistid',
         'MusicBrainz Album Type': 'releasetype',
         'MusicBrainz Album Status': 'releasestatus',

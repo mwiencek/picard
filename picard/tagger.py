@@ -224,10 +224,10 @@ class Tagger(QtGui.QApplication):
             log.log_levels = log.log_levels & ~log.LOG_DEBUG
         self._debug = debug
 
-    def move_files_to_album(self, files, albumid=None, album=None):
+    def move_files_to_album(self, files, albumid=None, album=None, transl_release_id=None):
         """Move `files` to tracks on album `albumid`."""
         if album is None:
-            album = self.load_album(albumid)
+            album = self.load_album(albumid, transl_release_id=transl_release_id)
         if album.loaded:
             album.match_files(files)
         else:
@@ -236,11 +236,15 @@ class Tagger(QtGui.QApplication):
 
     def move_file_to_album(self, file, albumid):
         """Move `file` to a track on album `albumid`."""
-        self.move_files_to_album([file], albumid)
+        transl_release_id = file.metadata.getall('musicbrainz_translreleaseid')[0] \
+            if 'musicbrainz_translreleaseid' in file.metadata else None
+        self.move_files_to_album([file], albumid, transl_release_id=transl_release_id)
 
     def move_file_to_track(self, file, albumid, recordingid):
         """Move `file` to recording `recordingid` on album `albumid`."""
-        album = self.load_album(albumid)
+        transl_release_id = file.metadata.getall('musicbrainz_translreleaseid')[0] \
+            if 'musicbrainz_translreleaseid' in file.metadata else None
+        album = self.load_album(albumid, transl_release_id=transl_release_id)
         file.move(album.unmatched_files)
         album.run_when_loaded(partial(album.match_file, file, recordingid))
 
@@ -311,6 +315,7 @@ class Tagger(QtGui.QApplication):
             elif not config.setting["ignore_file_mbids"]:
                 albumid = file.metadata.getall('musicbrainz_albumid')[0] \
                     if 'musicbrainz_albumid' in file.metadata else ''
+
                 if mbid_validate(albumid):
                     if mbid_validate(recordingid):
                         self.move_file_to_track(file, albumid, recordingid)
@@ -450,7 +455,7 @@ class Tagger(QtGui.QApplication):
         for file in files:
             file.save()
 
-    def load_album(self, id, discid=None):
+    def load_album(self, id, discid=None, transl_release_id=None):
         id = self.mbid_redirects.get(id, id)
         album = self.albums.get(id)
         if album:
@@ -459,7 +464,7 @@ class Tagger(QtGui.QApplication):
         album = Album(id, discid=discid)
         self.albums[id] = album
         self.album_added.emit(album)
-        album.load()
+        album.load(transl_release_id=transl_release_id)
         return album
 
     def load_nat(self, id, node=None):

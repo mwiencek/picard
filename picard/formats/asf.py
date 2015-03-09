@@ -118,6 +118,7 @@ class ASFFile(File):
         'musicbrainz_recordingid': 'MusicBrainz/Track Id',
         'musicbrainz_trackid': 'MusicBrainz/Release Track Id',
         'musicbrainz_albumid': 'MusicBrainz/Album Id',
+        'musicbrainz_translreleaseid': 'MusicBrainz/Translated or Transliterated Release Id',
         'musicbrainz_artistid': 'MusicBrainz/Artist Id',
         'musicbrainz_albumartistid': 'MusicBrainz/Album Artist Id',
         'musicbrainz_trmid': 'MusicBrainz/TRM Id',

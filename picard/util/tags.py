@@ -54,6 +54,7 @@ TAG_NAMES = {
     'musicbrainz_recordingid': N_('MusicBrainz Recording Id'),
     'musicbrainz_trackid': N_('MusicBrainz Track Id'),
     'musicbrainz_albumid': N_('MusicBrainz Release Id'),
+    'musicbrainz_translreleaseid': N_('MusicBrainz Translated or Transliterated Release Id'),
     'musicbrainz_artistid': N_('MusicBrainz Artist Id'),
     'musicbrainz_albumartistid': N_('MusicBrainz Release Artist Id'),
     'musicbrainz_workid': N_('MusicBrainz Work Id'),
