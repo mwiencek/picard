@@ -41,6 +41,8 @@ class Cluster(QtCore.QObject, Item):
         'totaltracks': 5,
         'releasecountry': 2,
         'format': 2,
+        'release_language': 3,
+        'release_script': 3,
     }
 
     def __init__(self, name, artist="", special=False, related_album=None, hide_if_empty=False):

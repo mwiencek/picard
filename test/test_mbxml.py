@@ -15,8 +15,7 @@ from picard.mbxml import (
 settings = {
     "standardize_tracks": False,
     "standardize_artists": False,
-    "standardize_releases": False,
-    "translate_artist_names": False
+    "standardize_releases": False
 }
 
 
@@ -229,13 +228,11 @@ class ArtistTest(unittest.TestCase):
             }
         )
 
-        config.setting["translate_artist_names"] = False
-        config.setting["artist_locale"] = "en"
+        config.setting["artist_locale"] = ""
         transl, translsort = _translate_artist_node(node)
         self.assertEqual(u"Pink Floyd", transl)
         self.assertEqual(u"Pink Floyd Sort", translsort)
 
-        config.setting["translate_artist_names"] = True
         config.setting["artist_locale"] = "ja"
         transl, translsort = _translate_artist_node(node)
         self.assertEqual(u'ピンク・フロイド', transl)
@@ -297,8 +294,6 @@ class ArtistTest(unittest.TestCase):
             }
         )
 
-        config.setting["translate_artist_names"] = True
-
         config.setting["artist_locale"] = "en"
         transl, translsort = _translate_artist_node(node)
         self.assertEqual(u"Pink Floyd Artist en", transl)
@@ -337,8 +332,6 @@ class ArtistTest(unittest.TestCase):
                 u'sort_name': [XmlNode(text=u'Pink Floyd Sort')]
             }
         )
-
-        config.setting["translate_artist_names"] = True
 
         config.setting["artist_locale"] = "en_US"
         transl, translsort = _translate_artist_node(node)
@@ -400,8 +393,6 @@ class ArtistTest(unittest.TestCase):
             }
         )
 
-        config.setting["translate_artist_names"] = True
-
         config.setting["artist_locale"] = "en"
         transl, translsort = _translate_artist_node(node)
         self.assertEqual(u"Pink Floyd en", transl)
@@ -418,8 +409,6 @@ class ArtistTest(unittest.TestCase):
                 u'sort_name': [XmlNode(text=u'Pink Floyd')]
             }
         )
-
-        config.setting["translate_artist_names"] = True
 
         # hacky en translation is chosen over native artist's name, because
         # artist's name has no locale definition, this case is a bit weird

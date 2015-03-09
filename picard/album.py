@@ -39,6 +39,7 @@ from picard.mbxml import (
     release_group_to_metadata,
     release_to_metadata,
     medium_to_metadata,
+    release_has_pseudo_status,
     track_to_metadata,
     transl_source_release_nodes
 )

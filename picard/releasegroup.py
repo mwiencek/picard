@@ -27,6 +27,7 @@ from picard.dataobj import DataObject
 from picard.mbxml import (
     label_info_from_node,
     media_formats_from_node,
+    release_has_pseudo_status,
     transl_source_release_nodes
 )
 from picard.util import uniqify
@@ -84,7 +85,7 @@ class ReleaseGroup(DataObject):
             # menu, but they otherwise shouldn't contain useful data like cover
             # artwork or relationships:
             # http://musicbrainz.org/doc/Style/Specific_types_of_releases/Pseudo-Releases
-            if 'status' in node.children and node.status[0].text == 'Pseudo-Release':
+            if release_has_pseudo_status(node):
                 continue
 
             labels, catnums = label_info_from_node(node.label_info_list[0])

@@ -20,6 +20,7 @@
 import os
 import re
 from functools import partial
+from operator import attrgetter
 from PyQt4 import QtCore, QtGui
 from picard import config, log
 from picard.const import MB_LANGUAGES, MB_SCRIPTS
@@ -345,7 +346,7 @@ class BaseTreeView(QtGui.QTreeWidget):
                         action.setCheckable(True)
                         if obj.id == version["id"]:
                             action.setChecked(True)
-                        action.triggered.connect(partial(obj.switch_release_version, version["id"]))
+                        action.triggered.connect(partial(obj.switch_release_version, version["id"], load_kwargs={}))
 
                     def switch_transl_callback(album, transl_release_id):
                         def triggered(enabled):
@@ -357,7 +358,7 @@ class BaseTreeView(QtGui.QTreeWidget):
 
                     transl_versions = obj.release_group.transl_versions[obj.id]
                     if transl_versions:
-                        for version in transl_versions:
+                        for version in sorted(transl_versions, key=attrgetter('language', 'script')):
                             language_name = _(MB_LANGUAGES.get(version['language'], '[unknown language]'))
                             script_name = _(MB_SCRIPTS.get(version['script'], '[unknown script]'))
                             action = transl_menu.addAction('%s / %s' % (language_name, script_name))

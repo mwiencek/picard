@@ -148,6 +148,16 @@ def upgrade_to_v1_4_0_dev_2():
         _s.remove(opt)
 
 
+def upgrade_to_v1_4_0_dev_3():
+    """Option "translate_artist_names" is removed. If it was disabled, the
+    "artist_locale" option is set to the empty string.
+    """
+    if not _s.value('translate_artist_names', config.BoolOption, False):
+        _s['artist_locale'] = ''
+
+    _s.remove('translate_artist_names')
+
+
 def upgrade_config():
     cfg = config._config
     cfg.register_upgrade_hook(upgrade_to_v1_0_0_final_0)
@@ -156,4 +166,5 @@ def upgrade_config():
     cfg.register_upgrade_hook(upgrade_to_v1_3_0_dev_3)
     cfg.register_upgrade_hook(upgrade_to_v1_3_0_dev_4)
     cfg.register_upgrade_hook(upgrade_to_v1_4_0_dev_2)
+    cfg.register_upgrade_hook(upgrade_to_v1_4_0_dev_3)
     cfg.run_upgrade_hooks(log.debug)

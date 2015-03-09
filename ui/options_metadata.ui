@@ -33,16 +33,6 @@
      </property>
      <layout class="QVBoxLayout" name="verticalLayout_3">
       <item>
-       <widget class="QCheckBox" name="translate_artist_names">
-        <property name="text">
-         <string>Translate artist names to this locale where possible:</string>
-        </property>
-       </widget>
-      </item>
-      <item>
-       <widget class="QComboBox" name="artist_locale"/>
-      </item>
-      <item>
        <widget class="QCheckBox" name="standardize_artists">
         <property name="text">
          <string>Use standardized artist names</string>
@@ -163,8 +153,6 @@
   </layout>
  </widget>
  <tabstops>
-  <tabstop>translate_artist_names</tabstop>
-  <tabstop>artist_locale</tabstop>
   <tabstop>standardize_artists</tabstop>
   <tabstop>convert_punctuation</tabstop>
   <tabstop>release_ars</tabstop>

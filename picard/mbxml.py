@@ -115,8 +115,8 @@ def _relations_to_metadata(relation_lists, m):
 
 def _translate_artist_node(node):
     transl, translsort = None, None
-    if config.setting['translate_artist_names']:
-        locale = config.setting["artist_locale"]
+    locale = config.setting["artist_locale"]
+    if locale:
         lang = locale.split("_")[0]
         if "alias_list" in node.children:
             result = (-1, (None, None))
@@ -250,6 +250,10 @@ def transl_source_release_nodes(node):
                         'direction' in relation.children and
                         relation.direction[0].text == 'backward'):
                     yield relation.release[0]
+
+
+def release_has_pseudo_status(node):
+    return 'status' in node.children and node.status[0].text == 'Pseudo-Release'
 
 
 def track_to_metadata(node, track):

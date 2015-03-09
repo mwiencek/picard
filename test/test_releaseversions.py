@@ -15,8 +15,7 @@ from picard.i18n import setup_gettext
 settings = {
     "standardize_tracks": False,
     "standardize_artists": False,
-    "standardize_releases": False,
-    "translate_artist_names": False
+    "standardize_releases": False
 }
 
 

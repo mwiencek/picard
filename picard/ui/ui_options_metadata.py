@@ -8,7 +8,16 @@ from PyQt4 import QtCore, QtGui
 try:
     _fromUtf8 = QtCore.QString.fromUtf8
 except AttributeError:
-    _fromUtf8 = lambda s: s
+    def _fromUtf8(s):
+        return s
+
+try:
+    _encoding = QtGui.QApplication.UnicodeUTF8
+    def _translate(context, text, disambig):
+        return QtGui.QApplication.translate(context, text, disambig, _encoding)
+except AttributeError:
+    def _translate(context, text, disambig):
+        return QtGui.QApplication.translate(context, text, disambig)
 
 class Ui_MetadataOptionsPage(object):
     def setupUi(self, MetadataOptionsPage):
@@ -27,12 +36,6 @@ class Ui_MetadataOptionsPage(object):
         self.metadata_groupbox.setObjectName(_fromUtf8("metadata_groupbox"))
         self.verticalLayout_3 = QtGui.QVBoxLayout(self.metadata_groupbox)
         self.verticalLayout_3.setObjectName(_fromUtf8("verticalLayout_3"))
-        self.translate_artist_names = QtGui.QCheckBox(self.metadata_groupbox)
-        self.translate_artist_names.setObjectName(_fromUtf8("translate_artist_names"))
-        self.verticalLayout_3.addWidget(self.translate_artist_names)
-        self.artist_locale = QtGui.QComboBox(self.metadata_groupbox)
-        self.artist_locale.setObjectName(_fromUtf8("artist_locale"))
-        self.verticalLayout_3.addWidget(self.artist_locale)
         self.standardize_artists = QtGui.QCheckBox(self.metadata_groupbox)
         self.standardize_artists.setObjectName(_fromUtf8("standardize_artists"))
         self.verticalLayout_3.addWidget(self.standardize_artists)
@@ -86,8 +89,6 @@ class Ui_MetadataOptionsPage(object):
 
         self.retranslateUi(MetadataOptionsPage)
         QtCore.QMetaObject.connectSlotsByName(MetadataOptionsPage)
-        MetadataOptionsPage.setTabOrder(self.translate_artist_names, self.artist_locale)
-        MetadataOptionsPage.setTabOrder(self.artist_locale, self.standardize_artists)
         MetadataOptionsPage.setTabOrder(self.standardize_artists, self.convert_punctuation)
         MetadataOptionsPage.setTabOrder(self.convert_punctuation, self.release_ars)
         MetadataOptionsPage.setTabOrder(self.release_ars, self.track_ars)
@@ -99,7 +100,6 @@ class Ui_MetadataOptionsPage(object):
 
     def retranslateUi(self, MetadataOptionsPage):
         self.metadata_groupbox.setTitle(_("Metadata"))
-        self.translate_artist_names.setText(_("Translate artist names to this locale where possible:"))
         self.standardize_artists.setText(_("Use standardized artist names"))
         self.convert_punctuation.setText(_("Convert Unicode punctuation characters to ASCII"))
         self.release_ars.setText(_("Use release relationships"))

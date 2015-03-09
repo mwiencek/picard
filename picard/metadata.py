@@ -160,6 +160,24 @@ class Metadata(dict):
                 score = 0.0
             parts.append((score, weights["releasetype"]))
 
+        release_language = None
+        release_script = None
+
+        if 'text_representation' in release.children:
+            tr = release.text_representation[0]
+            release_language = tr.language[0].text if 'language' in tr.children else None
+            release_script = tr.script[0].text if 'script' in tr.children else None
+
+        if '~releaselanguage' in self:
+            preferred_language = config.setting['preferred_language']
+            parts.append((1 if not preferred_language or preferred_language == release_language else 0,
+                          weights['release_language']))
+
+        if 'script' in self:
+            preferred_script = config.setting['preferred_script']
+            parts.append((1 if not preferred_script or preferred_script == release_script else 0,
+                          weights['release_script']))
+
         rg = QObject.tagger.get_release_group_by_id(release.release_group[0].id)
         if release.id in rg.loaded_albums:
             parts.append((1.0, 6))

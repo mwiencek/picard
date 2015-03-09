@@ -20,7 +20,6 @@
 from picard import config
 from picard.ui.options import OptionsPage, register_options_page
 from picard.ui.ui_options_metadata import Ui_MetadataOptionsPage
-from picard.const import ALIAS_LOCALES
 
 
 class MetadataOptionsPage(OptionsPage):
@@ -34,8 +33,6 @@ class MetadataOptionsPage(OptionsPage):
     options = [
         config.TextOption("setting", "va_name", u"Various Artists"),
         config.TextOption("setting", "nat_name", u"[non-album tracks]"),
-        config.TextOption("setting", "artist_locale", u"en"),
-        config.BoolOption("setting", "translate_artist_names", False),
         config.BoolOption("setting", "release_ars", True),
         config.BoolOption("setting", "track_ars", False),
         config.BoolOption("setting", "folksonomy_tags", False),
@@ -51,18 +48,6 @@ class MetadataOptionsPage(OptionsPage):
         self.ui.nat_name_default.clicked.connect(self.set_nat_name_default)
 
     def load(self):
-        self.ui.translate_artist_names.setChecked(config.setting["translate_artist_names"])
-
-        combo_box = self.ui.artist_locale
-        locales = sorted(ALIAS_LOCALES.keys())
-        for i, loc in enumerate(locales):
-            name = ALIAS_LOCALES[loc]
-            if "_" in loc:
-                name = "    " + name
-            combo_box.addItem(name, loc)
-            if loc == config.setting["artist_locale"]:
-                combo_box.setCurrentIndex(i)
-
         self.ui.convert_punctuation.setChecked(config.setting["convert_punctuation"])
         self.ui.release_ars.setChecked(config.setting["release_ars"])
         self.ui.track_ars.setChecked(config.setting["track_ars"])
@@ -72,8 +57,6 @@ class MetadataOptionsPage(OptionsPage):
         self.ui.standardize_artists.setChecked(config.setting["standardize_artists"])
 
     def save(self):
-        config.setting["translate_artist_names"] = self.ui.translate_artist_names.isChecked()
-        config.setting["artist_locale"] = self.ui.artist_locale.itemData(self.ui.artist_locale.currentIndex())
         config.setting["convert_punctuation"] = self.ui.convert_punctuation.isChecked()
         config.setting["release_ars"] = self.ui.release_ars.isChecked()
         config.setting["track_ars"] = self.ui.track_ars.isChecked()
