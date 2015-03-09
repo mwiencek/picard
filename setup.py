@@ -478,91 +478,88 @@ class picard_update_constants(Command):
                 tx_executable,
                 'pull',
                 '--force',
-                '--resource=musicbrainz.attributes,musicbrainz.countries',
+                '--resource=musicbrainz.attributes,musicbrainz.countries,musicbrainz.languages,musicbrainz.scripts',
                 '--source',
                 '--language=none',
             ]
             self.spawn(txpull_cmd)
 
-        countries = dict()
-        countries_potfile = os.path.join('po', 'countries', 'countries.pot')
-        isocode_comment = u'iso.code:'
-        with open(countries_potfile, 'rb') as f:
-            log.info('Parsing %s' % countries_potfile)
-            po = pofile.read_po(f)
-            for message in po:
-                if not message.id or not isinstance(message.id, unicode):
-                    continue
-                for comment in message.auto_comments:
-                    if comment.startswith(isocode_comment):
-                        code = comment.replace(isocode_comment, u'')
-                        countries[code] = message.id
-            if countries:
-                self.countries_py_file(countries)
-            else:
-                sys.exit('Failed to extract any country code/name !')
+        def _extract_from_po(fname, py_fname, const_name, handle_message):
+            with open(fname, 'rb') as f:
+                log.info('Parsing %s' % fname)
+                po = pofile.read_po(f)
+                result = {}
+                for message in po:
+                    if not message.id or not isinstance(message.id, unicode):
+                        continue
+                    handle_message(message, result)
+                if result:
+                    self._write_py_file(result, py_fname, const_name)
+                else:
+                    sys.exit('Failed to extract %s!' % (fname,))
 
-        attributes = dict()
-        attributes_potfile = os.path.join('po', 'attributes', 'attributes.pot')
+        isocode_comment = u'iso.code:'
+
+        def _handle_countries_message(message, countries):
+            for comment in message.auto_comments:
+                if comment.startswith(isocode_comment):
+                    code = comment.replace(isocode_comment, u'')
+                    countries[code] = message.id
+
+        countries_potfile = os.path.join('po', 'countries', 'countries.pot')
+        _extract_from_po(countries_potfile, 'countries.py', 'RELEASE_COUNTRIES', _handle_countries_message)
+
         extract_attributes = (
             u'DB:cover_art_archive.art_type/name',
             u'DB:medium_format/name',
             u'DB:release_group_primary_type/name',
             u'DB:release_group_secondary_type/name',
         )
-        with open(attributes_potfile, 'rb') as f:
-            log.info('Parsing %s' % attributes_potfile)
-            po = pofile.read_po(f)
-            for message in po:
-                if not message.id or not isinstance(message.id, unicode):
-                    continue
-                for loc, pos in message.locations:
-                    if loc in extract_attributes:
-                        attributes[u"%s:%03d" % (loc, pos)] = message.id
-            if attributes:
-                self.attributes_py_file(attributes)
-            else:
-                sys.exit('Failed to extract any attribute !')
 
-    def countries_py_file(self, countries):
+        def _handle_attributes_message(message, attributes):
+            for loc, pos in message.locations:
+                if loc in extract_attributes:
+                    attributes[u"%s:%03d" % (loc, pos)] = message.id
+
+        attributes_potfile = os.path.join('po', 'attributes', 'attributes.pot')
+        _extract_from_po(attributes_potfile, 'attributes.py', 'MB_ATTRIBUTES', _handle_attributes_message)
+
+        def _handle_languages_message(message, languages):
+            for comment in message.auto_comments:
+                match = re.match('frequency:(?P<frequency>[0-9]+) iso_code_3:(?P<iso_code_3>[a-z]{3})', comment)
+                if match and int(match.group('frequency')) > 0:
+                    languages[match.group('iso_code_3')] = message.id
+
+        languages_potfile = os.path.join('po', 'languages', 'languages.pot')
+        _extract_from_po(languages_potfile, 'languages.py', 'MB_LANGUAGES', _handle_languages_message)
+
+        def _handle_scripts_message(message, scripts):
+            for comment in message.auto_comments:
+                match = re.match('frequency:(?P<frequency>[0-9]+) iso_code:(?P<iso_code>[A-Z][a-z]{3})', comment)
+                if match and int(match.group('frequency')) > 0:
+                    scripts[match.group('iso_code')] = message.id
+
+        scripts_potfile = os.path.join('po', 'scripts', 'scripts.pot')
+        _extract_from_po(scripts_potfile, 'scripts.py', 'MB_SCRIPTS', _handle_scripts_message)
+
+    def _write_py_file(self, values, file_name, const_name):
         header = (u"# -*- coding: utf-8 -*-\n"
                   u"# Automatically generated - don't edit.\n"
                   u"# Use `python setup.py {option}` to update it.\n"
                   u"\n"
-                  u"RELEASE_COUNTRIES = {{\n")
+                  u"{const_name} = {{\n")
         line   =  u"    u'{code}': u'{name}',\n"
         footer =  u"}}\n"
-        filename = os.path.join('picard', 'const', 'countries.py')
+        filename = os.path.join('picard', 'const', file_name)
         with open(filename, 'w') as countries_py:
             def write_utf8(s, **kwargs):
                 countries_py.write(s.format(**kwargs).encode('utf-8'))
 
-            write_utf8(header, option=_get_option_name(self))
-            for code, name in sorted(countries.items(), key=lambda t: t[0]):
+            write_utf8(header, option=_get_option_name(self), const_name=const_name)
+            for code, name in sorted(values.items(), key=lambda t: t[0]):
                 write_utf8(line, code=code, name=name.replace("'", "\\'"))
             write_utf8(footer)
-            log.info("%s was rewritten (%d countries)" % (filename,
-                                                          len(countries)))
-
-    def attributes_py_file(self, attributes):
-        header = (u"# -*- coding: utf-8 -*-\n"
-                  u"# Automatically generated - don't edit.\n"
-                  u"# Use `python setup.py {option}` to update it.\n"
-                  u"\n"
-                  u"MB_ATTRIBUTES = {{\n")
-        line   =  u"    u'{key}': u'{value}',\n"
-        footer =  u"}}\n"
-        filename = os.path.join('picard', 'const', 'attributes.py')
-        with open(filename, 'w') as attributes_py:
-            def write_utf8(s, **kwargs):
-                attributes_py.write(s.format(**kwargs).encode('utf-8'))
-
-            write_utf8(header, option=_get_option_name(self))
-            for key, value in sorted(attributes.items(), key=lambda i: i[0]):
-                write_utf8(line, key=key, value=value.replace("'", "\\'"))
-            write_utf8(footer)
-            log.info("%s was rewritten (%d attributes)" % (filename,
-                                                           len(attributes)))
+            log.info("%s was rewritten (%d values)" % (filename, len(values)))
 
 
 class picard_patch_version(Command):

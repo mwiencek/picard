@@ -88,10 +88,16 @@ for k, v in MB_ATTRIBUTES.iteritems():
 from picard.const.countries import RELEASE_COUNTRIES
 
 # List of available user interface languages
-from picard.const.languages import UI_LANGUAGES
+from picard.const.ui_languages import UI_LANGUAGES
 
 # List of alias locales
 from picard.const.locales import ALIAS_LOCALES
+
+# List of MB languages
+from picard.const.languages import MB_LANGUAGES
+
+# List of MB scripts
+from picard.const.scripts import MB_SCRIPTS
 
 # List of official musicbrainz servers - must support SSL for mblogin requests (such as collections).
 MUSICBRAINZ_SERVERS = [
