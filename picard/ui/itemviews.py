@@ -20,7 +20,7 @@
 import os
 import re
 from functools import partial
-from operator import attrgetter
+from operator import itemgetter
 from PyQt4 import QtCore, QtGui
 from picard import config, log
 from picard.const import MB_LANGUAGES, MB_SCRIPTS
@@ -358,7 +358,7 @@ class BaseTreeView(QtGui.QTreeWidget):
 
                     transl_versions = obj.release_group.transl_versions[obj.id]
                     if transl_versions:
-                        for version in sorted(transl_versions, key=attrgetter('language', 'script')):
+                        for version in sorted(transl_versions, key=itemgetter('language', 'script')):
                             language_name = _(MB_LANGUAGES.get(version['language'], '[unknown language]'))
                             script_name = _(MB_SCRIPTS.get(version['script'], '[unknown script]'))
                             action = transl_menu.addAction('%s / %s' % (language_name, script_name))
