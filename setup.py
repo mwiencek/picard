@@ -536,7 +536,8 @@ class picard_update_constants(Command):
         def _handle_scripts_message(message, scripts):
             for comment in message.auto_comments:
                 match = re.match('frequency:(?P<frequency>[0-9]+) iso_code:(?P<iso_code>[A-Z][a-z]{3})', comment)
-                if match and int(match.group('frequency')) > 0:
+                # Unlike languages, scripts with frequency<=1 are hidden, not frequency<=0.
+                if match and int(match.group('frequency')) > 1:
                     scripts[match.group('iso_code')] = message.id
 
         scripts_potfile = os.path.join('po', 'scripts', 'scripts.pot')
