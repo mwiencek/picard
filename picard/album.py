@@ -384,7 +384,11 @@ class Album(DataObject, Item):
         # This would be much easier with promises of some sort ;_;
         release_request_finished = self._release_request_finished
 
-        if transl_release_id:
+        # The "Languages/scripts" menu also contains the language/script of the
+        # currently-selected version. When selected, transl_release_id will be
+        # equal to self.id here. We don't need to do anything but reload the
+        # release as it exists.
+        if transl_release_id and transl_release_id != self.id:
             previous_release_request_finished = release_request_finished
 
             def release_request_finished(release_document, http, error):

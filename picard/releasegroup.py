@@ -33,6 +33,15 @@ from picard.mbxml import (
 from picard.util import uniqify
 
 
+def transl_menu_item_info(node):
+    tr = node.text_representation[0] if 'text_representation' in node.children else None
+    return {
+        'id': node.id,
+        'language': tr.language[0].text if tr and 'language' in tr.children else None,
+        'script': tr.script[0].text if tr and 'script' in tr.children else None
+    }
+
+
 class ReleaseGroup(DataObject):
 
     def __init__(self, id):
@@ -69,16 +78,17 @@ class ReleaseGroup(DataObject):
             transl_sources = list(transl_source_release_nodes(node))
 
             if transl_sources:
-                tr = node.text_representation[0] if 'text_representation' in node.children else None
-
-                transl_info = {
-                    'id': node.id,
-                    'language': tr.language[0].text if tr and 'language' in tr.children else None,
-                    'script': tr.script[0].text if tr and 'script' in tr.children else None
-                }
+                transl_info = transl_menu_item_info(node)
 
                 for source in transl_sources:
-                    self.transl_versions[source.id].append(transl_info)
+                    transl_versions = self.transl_versions[source.id]
+
+                    # Add the source release's transl* info to its own menu, so
+                    # users can easily switch back to it.
+                    if not transl_versions:
+                        transl_versions.append(transl_menu_item_info(source))
+
+                    transl_versions.append(transl_info)
 
             # Leave pseudo-releases out of the other-versions menu; their
             # artist and title info can be grabbed via the "Languages/scripts"

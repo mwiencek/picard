@@ -352,8 +352,6 @@ class BaseTreeView(QtGui.QTreeWidget):
                         def triggered(enabled):
                             if enabled:
                                 album.force_switch_release_version(album.id, load_kwargs={'transl_release_id': transl_release_id})
-                            else:
-                                album.load(priority=True, refresh=True)
                         return triggered
 
                     transl_versions = obj.release_group.transl_versions[obj.id]
@@ -363,8 +361,13 @@ class BaseTreeView(QtGui.QTreeWidget):
                             script_name = _(MB_SCRIPTS.get(version['script'], '[unknown script]'))
                             action = transl_menu.addAction('%s / %s' % (language_name, script_name))
                             action.setCheckable(True)
-                            if obj.metadata['musicbrainz_translreleaseid'] == version['id']:
+
+                            # The currently-used transl*ation is stored in musicbrainz_translreleaseid. If no
+                            # transl*ation is being used, the item representing the current release is selected.
+                            if (obj.metadata['musicbrainz_translreleaseid'] == version['id'] or
+                                    ('musicbrainz_translreleaseid' not in obj.metadata and obj.id == version['id'])):
                                 action.setChecked(True)
+
                             action.triggered.connect(switch_transl_callback(obj, version['id']))
                         transl_menu.setDisabled(False)
 
