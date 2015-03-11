@@ -390,21 +390,20 @@ class Album(DataObject, Item):
             def release_request_finished(release_document, http, error):
                 release_document._transl_release_id = transl_release_id
 
-                def copy_transl_and_finish(transl_release_node, document, http, error):
+                def copy_transl_and_finish(transl_release_node, http, error):
                     if not error:
-                        release_node = document.metadata[0].release[0]
-                        release_node.title = transl_release_node.title
-                        release_node.artist_credit = transl_release_node.artist_credit
-                        release_node.medium_list = transl_release_node.medium_list
-                    previous_release_request_finished(document, http, error)
+                        release_node = release_document.metadata[0].release[0]
+                        for prop in ('title', 'artist_credit', 'medium_list'):
+                            release_node.children[prop] = getattr(transl_release_node, prop)
+                    previous_release_request_finished(release_document, http, error)
 
                 if transl_release_node:
-                    copy_transl_and_finish(transl_release_node, release_document, http, error)
+                    copy_transl_and_finish(transl_release_node, http, error)
                 else:
                     def transl_release_request_finished(document, http, error):
                         if not error:
                             transl_release_node = document.metadata[0].release[0]
-                        copy_transl_and_finish(transl_release_node, release_document, http, error)
+                        copy_transl_and_finish(transl_release_node, http, error)
 
                     self.tagger.xmlws.get_release_by_id(
                         transl_release_id,
