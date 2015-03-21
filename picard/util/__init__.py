@@ -381,3 +381,12 @@ def album_artist_from_path(filename, album, artist):
             elif not artist and len(dirs) >= 2:
                 artist = dirs[-2]
     return album, artist
+
+
+def load_preferred_languages_scripts():
+    from picard import config
+    return map(
+        lambda x: {'language': x[0], 'script': x[1]},
+        map(lambda x: x.split('\0') if '\0' in x else ['', ''],
+            config.setting['preferred_languages_scripts'])
+    )

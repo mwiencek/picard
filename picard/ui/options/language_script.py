@@ -17,11 +17,13 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
 
-from operator import itemgetter
 from picard import config
 from picard.ui.options import OptionsPage, register_options_page
 from picard.ui.ui_options_language_script import Ui_LanguageScriptOptionsPage
-from picard.const import ALIAS_LOCALES, MB_LANGUAGES, MB_SCRIPTS
+from picard.ui.language_script_dialog import LanguageScriptDialog
+from picard.ui.util import language_script_label
+from picard.util import load_preferred_languages_scripts
+from picard.const import ALIAS_LOCALES
 
 
 class LanguageScriptOptionsPage(OptionsPage):
@@ -33,8 +35,7 @@ class LanguageScriptOptionsPage(OptionsPage):
     ACTIVE = True
 
     options = [
-        config.TextOption("setting", "preferred_language", ""),
-        config.TextOption("setting", "preferred_script", ""),
+        config.ListOption("setting", "preferred_languages_scripts", []),
         config.TextOption("setting", "artist_locale", u"en"),
     ]
 
@@ -42,27 +43,35 @@ class LanguageScriptOptionsPage(OptionsPage):
         super(LanguageScriptOptionsPage, self).__init__(parent)
         self.ui = Ui_LanguageScriptOptionsPage()
         self.ui.setupUi(self)
+        self.ui.add_language_script_button.clicked.connect(self.add_language_script)
+        self.ui.edit_language_script_button.clicked.connect(self.edit_language_script)
+        self.ui.remove_language_script_button.clicked.connect(self.remove_language_script)
+        self.language_script_items = load_preferred_languages_scripts()
+
+    def add_language_script(self):
+        LanguageScriptDialog(self.parent(), self, None).exec_()
+
+    def edit_language_script(self):
+        LanguageScriptDialog(self.parent(), self, self.ui.language_script_list.currentRow()).exec_()
+
+    def remove_language_script(self):
+        list_widget = self.ui.language_script_list
+        current_row = list_widget.currentRow()
+        if current_row >= 0:
+            list_widget.takeItem(current_row)
+            del self.language_script_items[current_row]
+
+    def get_item_label(self, item):
+        return language_script_label(
+            item,
+            language_fallback=_('[no preferred language]'),
+            script_fallback=_('[no preferred script]')
+        )
 
     def load(self):
-        language_combo_box = self.ui.preferred_language
-        language_combo_box.addItem('', '')
-
-        for i, (iso_code, name) in enumerate(sorted(MB_LANGUAGES.iteritems(), key=itemgetter(1))):
-            language_combo_box.addItem(name, iso_code)
-            if iso_code == config.setting["preferred_language"]:
-                language_combo_box.setCurrentIndex(i + 1)
-
-        script_combo_box = self.ui.preferred_script
-        script_combo_box.addItem('', '')
-
-        for i, (iso_code, name) in enumerate(sorted(MB_SCRIPTS.iteritems(), key=itemgetter(1))):
-            script_combo_box.addItem(name, iso_code)
-            if iso_code == config.setting["preferred_script"]:
-                script_combo_box.setCurrentIndex(i + 1)
+        self.ui.language_script_list.addItems(map(self.get_item_label, self.language_script_items))
 
         artist_locale_combo_box = self.ui.artist_locale
-        artist_locale_combo_box.addItem('', '')
-
         for i, loc in enumerate(sorted(ALIAS_LOCALES.keys())):
             name = ALIAS_LOCALES[loc]
             if "_" in loc:
@@ -72,9 +81,8 @@ class LanguageScriptOptionsPage(OptionsPage):
                 artist_locale_combo_box.setCurrentIndex(i + 1)
 
     def save(self):
-        for name in ('preferred_language', 'preferred_script', 'artist_locale'):
-            combo_box = getattr(self.ui, name)
-            config.setting[name] = combo_box.itemData(combo_box.currentIndex())
+        config.setting['preferred_languages_scripts'] = map(lambda x: x['language'] + '\0' + x['script'], self.language_script_items)
+        config.setting['artist_locale'] = self.ui.artist_locale.itemData(self.ui.artist_locale.currentIndex())
 
 
 register_options_page(LanguageScriptOptionsPage)

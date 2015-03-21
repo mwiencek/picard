@@ -68,8 +68,7 @@ class File(QtCore.QObject, Item):
         "releasetype": 20,
         "releasecountry": 2,
         "format": 2,
-        "release_language": 3,
-        "release_script": 3,
+        "release_language_script": 26,
     }
 
     def __init__(self, filename):

@@ -23,7 +23,6 @@ from functools import partial
 from operator import itemgetter
 from PyQt4 import QtCore, QtGui
 from picard import config, log
-from picard.const import MB_LANGUAGES, MB_SCRIPTS
 from picard.album import Album, NatAlbum
 from picard.cluster import Cluster, ClusterList, UnmatchedFiles
 from picard.file import File
@@ -32,6 +31,7 @@ from picard.util import encode_filename, icontheme
 from picard.plugin import ExtensionPoint
 from picard.ui.ratingwidget import RatingWidget
 from picard.ui.collectionmenu import CollectionMenu
+from picard.ui.util import language_script_label
 
 
 class BaseAction(QtGui.QAction):
@@ -357,9 +357,7 @@ class BaseTreeView(QtGui.QTreeWidget):
                     transl_versions = obj.release_group.transl_versions[obj.id]
                     if transl_versions:
                         for version in sorted(transl_versions, key=itemgetter('language', 'script')):
-                            language_name = _(MB_LANGUAGES.get(version['language'], '[unknown language]'))
-                            script_name = _(MB_SCRIPTS.get(version['script'], '[unknown script]'))
-                            action = transl_menu.addAction('%s / %s' % (language_name, script_name))
+                            action = transl_menu.addAction(language_script_label(version))
                             action.setCheckable(True)
 
                             # The currently-used transl*ation is stored in musicbrainz_translreleaseid. If no

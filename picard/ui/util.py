@@ -20,6 +20,7 @@
 import sys
 from PyQt4 import QtCore, QtGui
 from picard import config
+from picard.const import MB_LANGUAGES, MB_SCRIPTS
 from picard.util import find_existing_path, icontheme
 
 
@@ -93,3 +94,9 @@ class ButtonLineEdit(QtGui.QLineEdit):
         self.clear_button.setVisible(text != "")
         left, top, right, bottom = self._margins
         self.setTextMargins(left, top, right + self.clear_button.width(), bottom)
+
+
+def language_script_label(item, language_fallback=None, script_fallback=None):
+    # Can't use _() in kwargs
+    return '%s / %s' % (_(MB_LANGUAGES.get(item['language'])) or language_fallback or _('[no language]'),
+                        _(MB_SCRIPTS.get(item['script'])) or script_fallback or _('[no script]'))

@@ -23,6 +23,7 @@ from picard.plugin import PluginFunctions, PluginPriority
 from picard.similarity import similarity2
 from picard.util import (
     linear_combination_of_weights,
+    load_preferred_languages_scripts
 )
 from picard.mbxml import artist_credit_from_node
 
@@ -160,23 +161,20 @@ class Metadata(dict):
                 score = 0.0
             parts.append((score, weights["releasetype"]))
 
-        release_language = None
-        release_script = None
+        language_script_item = {'language': self['~releaselanguage'], 'script': self['script']}
+        preferred_languages_scripts = load_preferred_languages_scripts()
 
         if 'text_representation' in release.children:
             tr = release.text_representation[0]
-            release_language = tr.language[0].text if 'language' in tr.children else None
-            release_script = tr.script[0].text if 'script' in tr.children else None
-
-        if '~releaselanguage' in self:
-            preferred_language = config.setting['preferred_language']
-            parts.append((1 if not preferred_language or preferred_language == release_language else 0,
-                          weights['release_language']))
-
-        if 'script' in self:
-            preferred_script = config.setting['preferred_script']
-            parts.append((1 if not preferred_script or preferred_script == release_script else 0,
-                          weights['release_script']))
+            info = {
+                'language': tr.language[0].text if 'language' in tr.children else None,
+                'script': tr.script[0].text if 'script' in tr.children else None
+            }
+            for i, pref in enumerate(preferred_languages_scripts):
+                parts.append(
+                    language_script_score(info, pref, i, len(preferred_languages_scripts), weights['release_language_script']),
+                    weights['release_language_script']
+                )
 
         rg = QObject.tagger.get_release_group_by_id(release.release_group[0].id)
         if release.id in rg.loaded_albums:
@@ -309,6 +307,23 @@ class Metadata(dict):
         "bar"
         """
         self.apply_func(lambda s: s.strip())
+
+
+def language_script_score(compared, preferred, preference_order, preference_count, overall_weight):
+    languages_match = compared['language'] == preferred['language']
+    scripts_match = compared['script'] == preferred['script']
+
+    pair_weight = 0.0
+    if languages_match and scripts_match:
+        pair_weight = 1.0
+    elif languages_match:
+        pair_weight = 0.5 if compared['script'] or preferred['script'] else 1.0
+    elif scripts_match:
+        pair_weight = 0.5 if compared['language'] or preferred['language'] else 1.0
+
+    # Language/script pairs higher in the list are given a larger share of the overall weighting
+    order_weight = (preference_count - preference_order) / float(preference_count)
+    return pair_weight * order_weight * overall_weight
 
 
 _album_metadata_processors = PluginFunctions()
