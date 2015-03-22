@@ -301,7 +301,6 @@ class BaseTreeView(QtGui.QTreeWidget):
         if isinstance(obj, Album) and not isinstance(obj, NatAlbum) and obj.loaded:
             releases_menu = QtGui.QMenu(_("&Other versions"), menu)
             transl_menu = QtGui.QMenu(_("&Languages/scripts"))
-            transl_menu.setDisabled(True)
             menu.addSeparator()
             menu.addMenu(releases_menu)
             menu.addMenu(transl_menu)
@@ -367,7 +366,6 @@ class BaseTreeView(QtGui.QTreeWidget):
                                 action.setChecked(True)
 
                             action.triggered.connect(switch_transl_callback(obj, version['id']))
-                        transl_menu.setDisabled(False)
 
                 if obj.release_group.loaded:
                     _add_other_versions()
