@@ -72,6 +72,8 @@ class LanguageScriptOptionsPage(OptionsPage):
         self.ui.language_script_list.addItems(map(self.get_item_label, self.language_script_items))
 
         artist_locale_combo_box = self.ui.artist_locale
+        artist_locale_combo_box.addItem('', '')
+
         for i, loc in enumerate(sorted(ALIAS_LOCALES.keys())):
             name = ALIAS_LOCALES[loc]
             if "_" in loc:
